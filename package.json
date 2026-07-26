@@ -1,0 +1,29 @@
+{
+  "name": "asset-management",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Asset Management System (AMS) - Enterprise & SaaS Multi-Tenant monorepo",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "api:dev": "npm run start:dev -w @ams/api",
+    "api:build": "npm run build -w @ams/api",
+    "api:lint": "npm run lint -w @ams/api",
+    "api:typecheck": "npm run typecheck -w @ams/api",
+    "api:migrate": "npm run migration:run -w @ams/api",
+    "api:seed": "npm run seed -w @ams/api",
+    "web:dev": "npm run dev -w @ams/web",
+    "web:build": "npm run build -w @ams/web",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

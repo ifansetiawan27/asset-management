@@ -1,0 +1,38 @@
+# dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# build output
+dist/
+build/
+*.tsbuildinfo
+.next/
+next-env.d.ts
+
+# uploads (object storage lokal dev)
+uploads/
+
+# env & secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+logs/
+
+# coverage & test
+coverage/
+.nyc_output/
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# docker volumes (local)
+.data/

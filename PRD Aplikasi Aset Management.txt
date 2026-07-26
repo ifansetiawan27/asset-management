@@ -1,0 +1,398 @@
+Product Requirements Document (PRD)
+Asset Management System
+Versi: 1.0
+Tanggal: Juli 2026
+Dokumen: Product Requirements Document (PRD)
+
+1. Executive Summary
+1.1 Latar Belakang
+Perusahaan membutuhkan sistem Asset Management yang mampu mengelola seluruh siklus hidup aset perusahaan secara terintegrasi, mulai dari proses pengadaan, pendistribusian, pemeliharaan, audit, hingga penghapusan aset.
+Saat ini pengelolaan aset yang dilakukan secara manual atau menggunakan spreadsheet menyebabkan berbagai permasalahan seperti:
+* Sulit melakukan pelacakan lokasi aset
+* Riwayat perpindahan aset tidak terdokumentasi
+* Jadwal maintenance sering terlewat
+* Sulit melakukan audit fisik
+* Tidak tersedia informasi nilai aset secara real-time
+* Pembuatan laporan membutuhkan waktu lama
+Aplikasi Asset Management diharapkan menjadi pusat informasi seluruh aset perusahaan sehingga meningkatkan efisiensi operasional, akurasi data, dan transparansi pengelolaan aset.
+
+2. Tujuan Produk
+Business Goals
+* Meningkatkan akurasi data aset
+* Mengurangi kehilangan aset
+* Mempermudah proses audit
+* Mempercepat proses inventarisasi
+* Memastikan maintenance dilakukan tepat waktu
+* Menyediakan laporan nilai aset secara real-time
+* Mendukung pengambilan keputusan terkait investasi aset
+
+3. Scope Produk
+Aplikasi mencakup seluruh lifecycle aset:
+1. Procurement & Onboarding
+2. Tracking & Assignment
+3. Maintenance & Inspection
+4. Depreciation & Audit
+5. Disposal & Retirement
+6. Dashboard & Reporting
+7. Master Data & Administration
+
+4. User Roles
+RoleHak AksesSuper AdminMengelola seluruh sistemAsset AdministratorMengelola data asetProcurementInput aset baruTeknisiMaintenance & RepairAuditorAudit fisik asetDepartment ManagerApproval peminjaman & mutasiEmployeeMelihat aset yang digunakan dan membuat tiket kerusakan
+5. Functional Requirements
+Module 1 — Procurement & Onboarding
+Tujuan
+Mencatat aset baru sejak proses pengadaan.
+Fitur
+Input Data Aset
+Field:
+* Asset Code (otomatis)
+* Asset Name
+* Asset Category
+* Brand
+* Model
+* Serial Number
+* Asset Type
+* Purchase Date
+* Purchase Price
+* Vendor
+* Warranty Expiry
+* Useful Life
+* Location
+* Department
+* Custodian (PIC)
+* Asset Status
+Upload Dokumen
+Mendukung upload:
+* Invoice
+* Purchase Order
+* Warranty Card
+* Manual Book
+* Foto Aset
+* Dokumen lainnya
+Generate Barcode / QR Code
+Sistem otomatis menghasilkan:
+* Barcode
+* QR Code
+yang dapat dicetak sebagai label aset.
+Asset Label
+Berisi:
+* Asset Code
+* Nama Asset
+* QR Code
+
+Module 2 — Tracking & Assignment
+Tujuan
+Melacak lokasi dan penggunaan aset.
+Assignment Asset
+Fitur:
+Assign aset kepada:
+* Pegawai
+* Divisi
+* Lokasi
+Riwayat assignment harus tersimpan.
+
+Asset Transfer
+Mencatat mutasi:
+* Antar divisi
+* Antar gedung
+* Antar cabang
+Workflow:
+Request
+?
+Approval
+?
+Transfer
+?
+Confirmation
+
+Asset Borrowing
+Peminjaman aset:
+Contoh:
+* Laptop
+* Kamera
+* Kendaraan
+* Projector
+Data yang dicatat:
+* Borrower
+* Borrow Date
+* Return Date
+* Actual Return
+* Condition Before
+* Condition After
+
+Digital Handover
+Serah terima digital:
+* Tanda tangan digital
+* Foto aset
+* Catatan kondisi
+
+Asset History
+Setiap aktivitas otomatis tercatat.
+Contoh:
+* Dibeli
+* Dipindahkan
+* Dipinjam
+* Dikembalikan
+* Diperbaiki
+* Diaudit
+* Dihapus
+
+Module 3 — Maintenance & Inspection
+Preventive Maintenance
+Membuat jadwal maintenance berdasarkan:
+* Bulanan
+* Triwulan
+* Semester
+* Tahunan
+* Custom
+Reminder otomatis:
+* Email
+* Dashboard Notification
+
+Corrective Maintenance
+Pengguna dapat membuat tiket kerusakan.
+Data:
+* Asset
+* Problem
+* Severity
+* Attachment Foto
+Status:
+Open
+?
+Assigned
+?
+In Progress
+?
+Completed
+?
+Closed
+
+Work Order
+Teknisi menerima:
+* Asset
+* Lokasi
+* Keluhan
+* Sparepart
+* Estimasi biaya
+
+Maintenance History
+Riwayat mencatat:
+* Teknisi
+* Tanggal
+* Jenis maintenance
+* Sparepart
+* Biaya
+* Lampiran
+
+Module 4 — Depreciation & Audit
+Asset Depreciation
+Sistem menghitung otomatis:
+* Nilai Perolehan
+* Umur Ekonomis
+* Nilai Buku
+* Penyusutan Bulanan
+* Penyusutan Tahunan
+Metode awal:
+* Straight Line
+Future:
+* Declining Balance
+* Units of Production
+
+Asset Audit
+Menggunakan Mobile App.
+Auditor melakukan:
+Scan QR Code
+?
+Data muncul
+?
+Verifikasi
+?
+Update kondisi
+?
+Upload foto
+?
+Submit
+
+Status audit:
+* Found
+* Missing
+* Damaged
+* Relocated
+
+Audit Report
+Laporan:
+* Asset ditemukan
+* Asset hilang
+* Asset rusak
+* Asset tidak sesuai lokasi
+
+Module 5 — Disposal & Retirement
+Digunakan ketika aset:
+* Rusak berat
+* Dijual
+* Hilang
+* Kadaluarsa
+* Donasi
+Workflow:
+Request Disposal
+?
+Approval
+?
+Disposal
+?
+Archive
+
+Status:
+* Active
+* Under Review
+* Retired
+* Disposed
+
+Dokumen:
+* Berita Acara
+* Foto
+* Approval
+* Nilai Penjualan
+
+Module 6 — Dashboard
+Dashboard menampilkan KPI.
+Asset Summary
+* Total Asset
+* Active Asset
+* Under Maintenance
+* Borrowed
+* Retired
+
+Asset Value
+Grafik:
+* Total Nilai Perolehan
+* Nilai Buku
+* Penyusutan
+
+Maintenance
+* Due Today
+* Overdue
+* Completed
+
+Audit
+* Progress Audit
+* Missing Asset
+* Damaged Asset
+
+Module 7 — Reporting
+Laporan yang tersedia:
+Inventory Report
+Daftar seluruh aset.
+
+Asset Location Report
+Per lokasi.
+
+Asset Assignment Report
+Per pegawai.
+
+Maintenance Report
+* Biaya
+* Frekuensi
+* Downtime
+
+Depreciation Report
+Periode:
+* Bulanan
+* Tahunan
+
+Disposal Report
+Daftar aset yang telah dihapus.
+
+6. Non Functional Requirements
+Performance
+* Response time < 3 detik
+* Mendukung 500 concurrent users
+* Mendukung 100.000 aset
+
+Security
+* Role Based Access Control (RBAC)
+* Multi-factor Authentication (opsional)
+* Audit Log
+* HTTPS
+* Data Encryption
+* Backup Harian
+
+Compatibility
+* Chrome
+* Edge
+* Firefox
+* Safari
+
+Mobile
+* Android
+* iOS
+* Responsive Web
+
+7. Workflow Utama
+Procurement
+Tambah Asset
+      ?
+Generate QR
+      ?
+Cetak Label
+      ?
+Assign Lokasi
+      ?
+Aktif
+
+Maintenance
+Keluhan
+    ?
+Ticket
+    ?
+Assign Teknisi
+    ?
+Repair
+    ?
+Close
+
+Audit
+Scan QR
+    ?
+Verifikasi
+    ?
+Foto
+    ?
+Update Status
+    ?
+Selesai
+
+Disposal
+Pengajuan
+     ?
+Approval
+     ?
+Disposal
+     ?
+Archive
+
+8. Integrasi
+Sistem sebaiknya mendukung integrasi dengan:
+* Active Directory / LDAP / Microsoft Entra ID untuk Single Sign-On (SSO)
+* ERP (SAP, Oracle, Odoo, Dynamics 365)
+* Sistem Akuntansi untuk sinkronisasi nilai aset
+* Email Server (SMTP/Microsoft 365)
+* WhatsApp Gateway (opsional) untuk notifikasi
+* Barcode/QR Code Scanner
+* REST API untuk integrasi dengan aplikasi lain
+
+9. Success Metrics (KPI)
+KPITargetAkurasi inventaris aset? 98%Waktu pencarian aset< 30 detikPenyelesaian maintenance tepat waktu? 95%Keberhasilan audit fisik? 98% aset tervalidasiPengurangan kehilangan aset? 50% dibanding tahun sebelumnyaWaktu pembuatan laporan< 5 menitKepuasan pengguna? 4,5/5
+10. Future Enhancements
+* Aplikasi mobile native (Android & iOS)
+* NFC/RFID Tracking
+* Integrasi IoT untuk monitoring aset secara real-time
+* AI-based predictive maintenance
+* Dashboard Business Intelligence (Power BI/Tableau)
+* Geolocation & geofencing untuk aset bergerak
+* OCR untuk otomatisasi input faktur dan dokumen
+* Digital approval berbasis workflow (multi-level)
+* Integrasi dengan Helpdesk/ITSM (misalnya ServiceNow atau GLPI)
+* Chatbot untuk pelaporan kerusakan dan pencarian informasi aset
+Dokumen PRD ini dapat menjadi acuan bagi tim Product, UI/UX, Engineering, QA, dan Project Management dalam merancang dan mengembangkan aplikasi Asset Management yang mendukung pengelolaan aset perusahaan secara end-to-end, mulai dari pengadaan hingga penghapusan aset.
+
