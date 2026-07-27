@@ -1,0 +1,8 @@
+# Cloudflare Pages — konfigurasi untuk aplikasi web (monorepo).
+# Di dashboard Cloudflare, set "Root directory (advanced)" = apps/web
+# agar deteksi framework menargetkan aplikasi ini, bukan root workspace.
+#
+# Situs diekspor statis (Next output: 'export') ke folder ./out.
+name = "asset-management"
+compatibility_date = "2024-11-01"
+pages_build_output_dir = "out"
