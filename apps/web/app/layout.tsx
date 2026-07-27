@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 import './globals.css';
-import { AppShell } from '@/components/app-shell';
+import { AuthGate } from '@/components/auth-gate';
 
 export const metadata: Metadata = {
   title: 'AMS — Asset Management System',
@@ -12,7 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="id">
       <body>
-        <AppShell>{children}</AppShell>
+        <AuthGate>{children}</AuthGate>
       </body>
     </html>
   );

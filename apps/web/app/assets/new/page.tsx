@@ -60,7 +60,7 @@ export default function NewAssetPage() {
       if (form.vendorId) body.vendorId = form.vendorId;
 
       const created = await apiPost<Asset>('/assets', body);
-      router.push(`/assets/${created.id}`);
+      router.push(`/assets/detail?id=${created.id}`);
     } catch (err) {
       setError((err as Error).message);
       setSaving(false);

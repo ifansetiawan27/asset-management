@@ -67,6 +67,61 @@
       "realmRoles": ["SUPER_ADMIN"]
     },
     {
+      "username": "assetadmin@demo.local",
+      "email": "assetadmin@demo.local",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Asset",
+      "lastName": "Administrator",
+      "attributes": { "tenant_id": ["11111111-1111-1111-1111-111111111111"] },
+      "credentials": [{ "type": "password", "value": "Passw0rd!", "temporary": false }],
+      "realmRoles": ["ASSET_ADMINISTRATOR"]
+    },
+    {
+      "username": "procurement@demo.local",
+      "email": "procurement@demo.local",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Pro",
+      "lastName": "Curement",
+      "attributes": { "tenant_id": ["11111111-1111-1111-1111-111111111111"] },
+      "credentials": [{ "type": "password", "value": "Passw0rd!", "temporary": false }],
+      "realmRoles": ["PROCUREMENT"]
+    },
+    {
+      "username": "teknisi@demo.local",
+      "email": "teknisi@demo.local",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Tek",
+      "lastName": "Nisi",
+      "attributes": { "tenant_id": ["11111111-1111-1111-1111-111111111111"] },
+      "credentials": [{ "type": "password", "value": "Passw0rd!", "temporary": false }],
+      "realmRoles": ["TECHNICIAN"]
+    },
+    {
+      "username": "auditor@demo.local",
+      "email": "auditor@demo.local",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Audi",
+      "lastName": "Tor",
+      "attributes": { "tenant_id": ["11111111-1111-1111-1111-111111111111"] },
+      "credentials": [{ "type": "password", "value": "Passw0rd!", "temporary": false }],
+      "realmRoles": ["AUDITOR"]
+    },
+    {
+      "username": "manager@demo.local",
+      "email": "manager@demo.local",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Dept",
+      "lastName": "Manager",
+      "attributes": { "tenant_id": ["11111111-1111-1111-1111-111111111111"] },
+      "credentials": [{ "type": "password", "value": "Passw0rd!", "temporary": false }],
+      "realmRoles": ["DEPARTMENT_MANAGER"]
+    },
+    {
       "username": "employee@demo.local",
       "email": "employee@demo.local",
       "emailVerified": true,

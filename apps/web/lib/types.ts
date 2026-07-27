@@ -38,8 +38,12 @@ export interface Asset {
   usefulLifeYears?: number | null;
   depreciationMethod?: string;
   vendorId?: string | null;
+  locationId?: string | null;
+  departmentId?: string | null;
+  custodianUserId?: string | null;
   qrUrl?: string | null;
   createdAt: string;
+  updatedAt?: string | null;
 }
 
 export interface DashboardSummary {
@@ -71,4 +75,79 @@ export interface DepreciationEntry {
   depreciationAmount: number;
   accumulated: number;
   bookValue: number;
+}
+
+export interface AppUser {
+  id: string;
+  email: string;
+  fullName: string;
+  status: string;
+  mfaEnabled: boolean;
+  roles: Array<{ code: string; name: string }>;
+  createdAt: string;
+}
+
+export interface Ticket {
+  id: string;
+  assetId: string;
+  problem: string;
+  severity: string;
+  status: string;
+  type: string;
+  createdAt: string;
+}
+
+export interface WorkOrder {
+  id: string;
+  assetId: string;
+  ticketId?: string | null;
+  status: string;
+  maintenanceType: string;
+  estimatedCost?: number | null;
+  actualCost?: number | null;
+  createdAt: string;
+}
+
+export interface AuditSession {
+  id: string;
+  name: string;
+  status: string;
+  startedAt?: string | null;
+  closedAt?: string | null;
+  createdAt: string;
+}
+
+export interface Disposal {
+  id: string;
+  assetId: string;
+  reason: string;
+  status: string;
+  saleValue?: number | null;
+  disposedAt?: string | null;
+  createdAt: string;
+}
+
+export interface ApprovalReq {
+  id: string;
+  entityType: string;
+  entityId: string;
+  approverRole: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface Subscription {
+  id: string;
+  planCode: string;
+  status: string;
+  seats: number;
+  assetQuota: number;
+  currentPeriodStart?: string | null;
+}
+
+export interface UsageSummary {
+  plan: string | null;
+  status: string | null;
+  assets: { used: number; quota: number | null };
+  users: { used: number; seats: number | null };
 }

@@ -1,0 +1,18 @@
+# ==========================================================
+# Netlify — deploy frontend Next.js (@ams/web) sebagai SITUS STATIS.
+#
+# Demo Mode berjalan sepenuhnya di browser (data mock in-memory,
+# login akun demo divalidasi di klien), sehingga aplikasi diekspor
+# ke folder statis (apps/web/out) dan TIDAK butuh backend maupun
+# serverless/plugin apa pun.
+#
+# Monorepo npm workspaces: install di root, build workspace web.
+# ==========================================================
+
+[build]
+  command = "npm run web:build"
+  publish = "apps/web/out"
+
+[build.environment]
+  NEXT_PUBLIC_DEMO_MODE = "1"
+  NODE_VERSION = "20"

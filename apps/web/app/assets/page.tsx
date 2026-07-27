@@ -120,7 +120,7 @@ export default function AssetsPage() {
                       <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(a.bookValue, a.currency)}</td>
                       <td className="px-4 py-3 text-slate-500">{formatDate(a.createdAt)}</td>
                       <td className="px-4 py-3 text-right">
-                        <Link href={`/assets/${a.id}`} className="text-sm font-medium text-brand-600 hover:underline">
+                        <Link href={`/assets/detail?id=${a.id}`} className="text-sm font-medium text-brand-600 hover:underline">
                           Detail
                         </Link>
                       </td>

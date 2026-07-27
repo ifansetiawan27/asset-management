@@ -1,23 +1,22 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
-import { Badge, Card, CardBody, CardHeader, ErrorBox, PageHeader, Spinner } from '@/components/ui';
+import { Icon } from '@/components/icons';
+import {
+  Card,
+  CardBody,
+  CardHeader,
+  ConditionCard,
+  ErrorBox,
+  PageHeader,
+  Spinner,
+  StatCard,
+} from '@/components/ui';
 import { apiGet } from '@/lib/api';
 import { formatCurrency, formatDateTime } from '@/lib/format';
 import { DashboardSummary } from '@/lib/types';
-
-function StatCard({ label, value, caption }: { label: string; value: string; caption?: string }) {
-  return (
-    <Card>
-      <CardBody>
-        <p className="text-sm font-medium text-slate-500">{label}</p>
-        <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900">{value}</p>
-        {caption ? <p className="mt-1 text-xs text-slate-400">{caption}</p> : null}
-      </CardBody>
-    </Card>
-  );
-}
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardSummary | null>(null);
@@ -31,61 +30,62 @@ export default function DashboardPage() {
 
   return (
     <>
-      <PageHeader title="Dashboard" subtitle="Ringkasan KPI aset perusahaan" />
+      <PageHeader
+        title="Dashboard"
+        subtitle="Ringkasan kondisi & nilai aset perusahaan"
+        action={
+          <Link
+            href="/assets"
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            Lihat semua aset
+          </Link>
+        }
+      />
+
       {error ? <ErrorBox message={error} /> : null}
       {!data && !error ? <Spinner /> : null}
+
       {data ? (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatCard label="Total Aset" value={String(data.assetSummary.total)} />
-            <StatCard label="Aktif" value={String(data.assetSummary.byStatus.ACTIVE ?? 0)} />
-            <StatCard label="Dipinjam" value={String(data.assetSummary.byStatus.BORROWED ?? 0)} />
-            <StatCard label="Dalam Perbaikan" value={String(data.assetSummary.byStatus.IN_MAINTENANCE ?? 0)} />
+            <StatCard label="Total Aset" value={data.assetSummary.total} tone="violet" icon={<Icon name="box" />} />
+            <StatCard label="Aktif" value={data.assetSummary.byStatus.ACTIVE ?? 0} tone="green" icon={<Icon name="check" />} />
+            <StatCard label="Dipinjam" value={data.assetSummary.byStatus.BORROWED ?? 0} tone="blue" icon={<Icon name="user" />} />
+            <StatCard label="Perbaikan" value={data.assetSummary.byStatus.IN_MAINTENANCE ?? 0} tone="amber" icon={<Icon name="wrench" />} />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-3">
-            <StatCard label="Nilai Perolehan" value={formatCurrency(data.assetValue.totalPurchase)} />
-            <StatCard label="Nilai Buku" value={formatCurrency(data.assetValue.totalBookValue)} />
-            <StatCard label="Akumulasi Penyusutan" value={formatCurrency(data.assetValue.totalDepreciation)} />
+            <StatCard label="Nilai Perolehan" value={formatCurrency(data.assetValue.totalPurchase)} tone="blue" icon={<Icon name="money" />} />
+            <StatCard label="Nilai Buku" value={formatCurrency(data.assetValue.totalBookValue)} tone="green" icon={<Icon name="money" />} />
+            <StatCard label="Akumulasi Penyusutan" value={formatCurrency(data.assetValue.totalDepreciation)} tone="amber" icon={<Icon name="report" />} />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader title="Maintenance" />
-              <CardBody className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <MiniStat label="Tiket Terbuka" value={data.maintenance.openTickets} />
-                <MiniStat label="Selesai" value={data.maintenance.completedTickets} />
-                <MiniStat label="Jatuh Tempo" value={data.maintenance.dueToday} />
-                <MiniStat label="Terlambat" value={data.maintenance.overdue} tone="red" />
+              <CardBody className="grid grid-cols-2 gap-3 sm:grid-cols-2">
+                <ConditionCard title={`${data.maintenance.openTickets} Tiket Terbuka`} subtitle="Menunggu penanganan" tone={data.maintenance.openTickets > 0 ? 'amber' : 'green'} icon={<Icon name="wrench" />} />
+                <ConditionCard title={`${data.maintenance.completedTickets} Selesai`} subtitle="Tiket terselesaikan" tone="green" icon={<Icon name="check" />} />
+                <ConditionCard title={`${data.maintenance.dueToday} Jatuh Tempo`} subtitle="Preventive hari ini" tone={data.maintenance.dueToday > 0 ? 'blue' : 'slate'} icon={<Icon name="clipboard" />} />
+                <ConditionCard title={`${data.maintenance.overdue} Terlambat`} subtitle="Preventive lewat jadwal" tone={data.maintenance.overdue > 0 ? 'red' : 'green'} icon={<Icon name="activity" />} />
               </CardBody>
             </Card>
+
             <Card>
               <CardHeader title="Audit" />
-              <CardBody className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <MiniStat label="Sesi" value={data.audit.totalSessions} />
-                <MiniStat label="Berjalan" value={data.audit.inProgressSessions} />
-                <MiniStat label="Hilang" value={data.audit.byStatus.MISSING ?? 0} tone="red" />
-                <MiniStat label="Rusak" value={data.audit.byStatus.DAMAGED ?? 0} tone="amber" />
+              <CardBody className="grid grid-cols-2 gap-3">
+                <ConditionCard title={`${data.audit.totalSessions} Sesi`} subtitle="Total sesi audit" tone="slate" icon={<Icon name="clipboard" />} />
+                <ConditionCard title={`${data.audit.inProgressSessions} Berjalan`} subtitle="Sesi in-progress" tone="blue" icon={<Icon name="activity" />} />
+                <ConditionCard title={`${data.audit.byStatus.MISSING ?? 0} Hilang`} subtitle="Item MISSING" tone={(data.audit.byStatus.MISSING ?? 0) > 0 ? 'red' : 'green'} icon={<Icon name="shield" />} />
+                <ConditionCard title={`${data.audit.byStatus.DAMAGED ?? 0} Rusak`} subtitle="Item DAMAGED" tone={(data.audit.byStatus.DAMAGED ?? 0) > 0 ? 'amber' : 'green'} icon={<Icon name="wrench" />} />
               </CardBody>
             </Card>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge color="green">API terhubung</Badge>
-            <span className="text-xs text-slate-400">Diperbarui: {formatDateTime(data.generatedAt)}</span>
-          </div>
+          <p className="text-xs text-slate-400">Diperbarui: {formatDateTime(data.generatedAt)}</p>
         </div>
       ) : null}
     </>
-  );
-}
-
-function MiniStat({ label, value, tone }: { label: string; value: number; tone?: 'red' | 'amber' }) {
-  const color = tone === 'red' ? 'text-red-600' : tone === 'amber' ? 'text-amber-600' : 'text-slate-900';
-  return (
-    <div>
-      <p className={`text-2xl font-bold ${color}`}>{value}</p>
-      <p className="text-xs text-slate-500">{label}</p>
-    </div>
   );
 }

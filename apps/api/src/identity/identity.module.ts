@@ -5,6 +5,7 @@ import { PassportModule } from '@nestjs/passport';
 
 import { RolesGuard } from '../shared/rbac/roles.guard';
 import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { JwtStrategy } from './jwt.strategy';
 
@@ -12,6 +13,7 @@ import { JwtStrategy } from './jwt.strategy';
   imports: [ConfigModule, PassportModule.register({ defaultStrategy: 'jwt' })],
   controllers: [AuthController],
   providers: [
+    AuthService,
     JwtStrategy,
     // Urutan penting: autentikasi (JWT) dulu, lalu otorisasi (RBAC).
     { provide: APP_GUARD, useClass: JwtAuthGuard },
