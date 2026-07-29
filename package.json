@@ -25,5 +25,8 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "allowScripts": {
+    "@nestjs/core@10.4.22": true
   }
 }
