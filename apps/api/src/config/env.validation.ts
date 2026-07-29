@@ -16,6 +16,11 @@ export const validationSchema = Joi.object({
   DB_ADMIN_USERNAME: Joi.string().optional(),
   DB_ADMIN_PASSWORD: Joi.string().optional(),
 
+  // TLS koneksi DB (wajib untuk DB terkelola seperti Supabase)
+  DB_SSL: Joi.string().valid('true', 'false').default('false'),
+  DB_SSL_REJECT_UNAUTHORIZED: Joi.string().valid('true', 'false').default('false'),
+  DB_SSL_CA_PATH: Joi.string().optional(),
+
   // Keycloak (SSO / OIDC)
   KEYCLOAK_URL: Joi.string().uri().default('http://localhost:8080'),
   KEYCLOAK_REALM: Joi.string().default('ams'),

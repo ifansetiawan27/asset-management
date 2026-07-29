@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { config as loadEnv } from 'dotenv';
 import { DataSource } from 'typeorm';
 
+import { buildDbSsl } from '../config/db-ssl';
 import { Tenant } from '../platform/tenant/tenant.entity';
 import { User } from '../platform/user/user.entity';
 import { Role } from '../platform/role/role.entity';
@@ -56,6 +57,8 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_ADMIN_USERNAME ?? process.env.DB_USERNAME ?? 'ams_admin',
   password: process.env.DB_ADMIN_PASSWORD ?? process.env.DB_PASSWORD ?? 'ams_admin_pw',
   database: process.env.DB_NAME ?? 'ams',
+  // TLS untuk DB terkelola (mis. Supabase). Aktifkan dengan DB_SSL=true.
+  ssl: buildDbSsl(),
   entities: [
     Tenant,
     User,

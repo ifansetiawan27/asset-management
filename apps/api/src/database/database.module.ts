@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { buildDbSsl } from '../config/db-ssl';
 import { Tenant } from '../platform/tenant/tenant.entity';
 import { User } from '../platform/user/user.entity';
 import { Role } from '../platform/role/role.entity';
@@ -45,6 +46,8 @@ import { NotificationTemplate } from '../notification/entities/notification-temp
         username: config.get<string>('database.username'),
         password: config.get<string>('database.password'),
         database: config.get<string>('database.name'),
+        // TLS untuk DB terkelola (mis. Supabase). Aktifkan dengan DB_SSL=true.
+        ssl: buildDbSsl(),
         entities: [
           Tenant,
           User,
