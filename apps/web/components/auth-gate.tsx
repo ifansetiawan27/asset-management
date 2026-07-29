@@ -15,15 +15,15 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setMounted(true);
   }, []);
 
-  const isLogin = pathname === '/login';
+  const isPublic = pathname === '/login' || pathname === '/register';
 
   useEffect(() => {
-    if (mounted && !isLogin && !getToken()) {
+    if (mounted && !isPublic && !getToken()) {
       router.replace('/login');
     }
-  }, [mounted, isLogin, pathname, router]);
+  }, [mounted, isPublic, pathname, router]);
 
-  if (isLogin) {
+  if (isPublic) {
     return <>{children}</>;
   }
   if (!mounted || !getToken()) {

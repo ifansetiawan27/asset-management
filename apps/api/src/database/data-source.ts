@@ -41,6 +41,7 @@ import { InitFinanceAudit1720000000006 } from './migrations/1720000000006-InitFi
 import { InitDisposal1720000000007 } from './migrations/1720000000007-InitDisposal';
 import { InitBilling1720000000008 } from './migrations/1720000000008-InitBilling';
 import { InitNotification1720000000009 } from './migrations/1720000000009-InitNotification';
+import { AddUserPassword1720000000010 } from './migrations/1720000000010-AddUserPassword';
 
 // Muat .env dari root proyek jika ada
 loadEnv();
@@ -100,6 +101,7 @@ export const AppDataSource = new DataSource({
     InitDisposal1720000000007,
     InitBilling1720000000008,
     InitNotification1720000000009,
+    AddUserPassword1720000000010,
   ],
   synchronize: false,
   logging: ['error', 'warn', 'migration'],

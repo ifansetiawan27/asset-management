@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { JwtModule, JwtSignOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 
 import { RolesGuard } from '../shared/rbac/roles.guard';
@@ -10,7 +11,22 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { JwtStrategy } from './jwt.strategy';
 
 @Module({
-  imports: [ConfigModule, PassportModule.register({ defaultStrategy: 'jwt' })],
+  imports: [
+    ConfigModule,
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+    // JWT lokal (HS256) untuk menerbitkan & memverifikasi token sendiri.
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: config.get<string>('jwt.secret'),
+        signOptions: {
+          expiresIn: (config.get<string>('jwt.expiresIn') ??
+            '8h') as JwtSignOptions['expiresIn'],
+        },
+      }),
+    }),
+  ],
   controllers: [AuthController],
   providers: [
     AuthService,

@@ -1,8 +1,9 @@
-import { IsString, MinLength } from 'class-validator';
+import { IsEmail, IsString, MinLength } from 'class-validator';
 
+/** Payload login (email/password). */
 export class LoginDto {
-  @IsString()
-  username: string;
+  @IsEmail({}, { message: 'Email tidak valid' })
+  email: string;
 
   @IsString()
   @MinLength(1)

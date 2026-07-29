@@ -21,7 +21,15 @@ export const validationSchema = Joi.object({
   DB_SSL_REJECT_UNAUTHORIZED: Joi.string().valid('true', 'false').default('false'),
   DB_SSL_CA_PATH: Joi.string().optional(),
 
-  // Keycloak (SSO / OIDC)
+  // Autentikasi lokal (email/password + JWT diterbitkan API sendiri)
+  JWT_SECRET: Joi.string()
+    .min(16)
+    .default('dev-jwt-secret-change-me-min-32-characters!!'),
+  JWT_EXPIRES_IN: Joi.string().default('8h'),
+  // Tenant default untuk pendaftaran/login (deployment single-tenant)
+  AUTH_DEFAULT_TENANT_ID: Joi.string().optional(),
+
+  // Keycloak (SSO / OIDC) — opsional; tidak dipakai auth email/password
   KEYCLOAK_URL: Joi.string().uri().default('http://localhost:8080'),
   KEYCLOAK_REALM: Joi.string().default('ams'),
   KEYCLOAK_CLIENT_ID: Joi.string().default('ams-web'),

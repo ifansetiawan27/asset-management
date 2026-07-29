@@ -53,28 +53,51 @@ export function getUser(): SessionUser | null {
   return t ? decode(t) : null;
 }
 
-export async function login(username: string, password: string): Promise<void> {
-  if (isDemo()) {
-    const token = demoLogin(username, password);
-    window.localStorage.setItem(TOKEN_KEY, token);
-    return;
-  }
-  const res = await fetch(`${API_BASE}/auth/login`, {
+async function postAuth(
+  path: string,
+  body: Record<string, unknown>,
+): Promise<{ accessToken: string }> {
+  const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
-    let message = 'Login gagal';
+    let message = 'Permintaan gagal';
     try {
       const j = await res.json();
-      message = j?.error?.message ?? j?.message ?? message;
+      const raw = j?.error?.message ?? j?.message;
+      message = Array.isArray(raw) ? raw.join(', ') : (raw ?? message);
     } catch {
       /* ignore */
     }
     throw new Error(message);
   }
-  const json = (await res.json()) as { accessToken: string };
+  return (await res.json()) as { accessToken: string };
+}
+
+export async function login(email: string, password: string): Promise<void> {
+  if (isDemo()) {
+    const token = demoLogin(email, password);
+    window.localStorage.setItem(TOKEN_KEY, token);
+    return;
+  }
+  const json = await postAuth('/auth/login', { email, password });
+  window.localStorage.setItem(TOKEN_KEY, json.accessToken);
+}
+
+/** Pendaftaran akun baru (mode backend nyata). */
+export async function register(
+  fullName: string,
+  email: string,
+  password: string,
+): Promise<void> {
+  if (isDemo()) {
+    throw new Error(
+      'Pendaftaran tidak tersedia di Mode Demo. Nonaktifkan Demo Mode untuk membuat akun nyata.',
+    );
+  }
+  const json = await postAuth('/auth/register', { fullName, email, password });
   window.localStorage.setItem(TOKEN_KEY, json.accessToken);
 }
 

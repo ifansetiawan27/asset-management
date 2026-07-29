@@ -1,10 +1,12 @@
 # ==========================================================
 # Netlify — deploy frontend Next.js (@ams/web) sebagai SITUS STATIS.
 #
-# Demo Mode berjalan sepenuhnya di browser (data mock in-memory,
-# login akun demo divalidasi di klien), sehingga aplikasi diekspor
-# ke folder statis (apps/web/out) dan TIDAK butuh backend maupun
-# serverless/plugin apa pun.
+# MODE NYATA (akun email/password + JWT via backend NestJS):
+#   - NEXT_PUBLIC_DEMO_MODE = "0"
+#   - NEXT_PUBLIC_API_BASE_URL = URL API terdeploy Anda + "/api/v1"
+#     (WAJIB diisi; ganti placeholder di bawah, atau set di dashboard Netlify).
+#
+# Untuk kembali ke Demo Mode publik (tanpa backend), set DEMO_MODE = "1".
 #
 # Monorepo npm workspaces: install di root, build workspace web.
 # ==========================================================
@@ -14,5 +16,7 @@
   publish = "apps/web/out"
 
 [build.environment]
-  NEXT_PUBLIC_DEMO_MODE = "1"
-  NODE_VERSION = "20"
+  NEXT_PUBLIC_DEMO_MODE = "0"
+  # GANTI dengan host API Anda (mis. https://api.domainanda.com/api/v1).
+  NEXT_PUBLIC_API_BASE_URL = "https://GANTI-DENGAN-HOST-API-ANDA/api/v1"
+  NODE_VERSION = "22"

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -22,8 +23,8 @@ const PASSWORD = 'Passw0rd!';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('superadmin@demo.local');
-  const [password, setPassword] = useState(PASSWORD);
+  const [email, setEmail] = useState(isDemo() ? 'superadmin@demo.local' : '');
+  const [password, setPassword] = useState(isDemo() ? PASSWORD : '');
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -75,7 +76,11 @@ export default function LoginPage() {
           </div>
 
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Masuk</h1>
-          <p className="mt-1 text-sm text-slate-500">Gunakan akun demo, atau pilih peran di bawah.</p>
+          <p className="mt-1 text-sm text-slate-500">
+            {isDemo()
+              ? 'Gunakan akun demo, atau pilih peran di bawah.'
+              : 'Masuk dengan email dan password akun Anda.'}
+          </p>
           {isDemo() ? (
             <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
               <span className="inline-flex h-2 w-2 rounded-full bg-amber-500" />
@@ -102,30 +107,41 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="my-6 flex items-center gap-3 text-xs text-slate-400">
-            <span className="h-px flex-1 bg-slate-200" /> Login cepat sebagai peran <span className="h-px flex-1 bg-slate-200" />
-          </div>
+          {isDemo() ? (
+            <>
+              <div className="my-6 flex items-center gap-3 text-xs text-slate-400">
+                <span className="h-px flex-1 bg-slate-200" /> Login cepat sebagai peran <span className="h-px flex-1 bg-slate-200" />
+              </div>
 
-          <div className="space-y-2">
-            {ACCOUNTS.map((a) => (
-              <button
-                key={a.email}
-                disabled={busy}
-                onClick={() => doLogin(a.email, PASSWORD)}
-                className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-brand-300 hover:bg-brand-50 disabled:opacity-50"
-              >
-                <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${a.color}`}>
-                  <Icon name="user" width={18} height={18} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-slate-800">{a.role}</span>
-                  <span className="block text-xs text-slate-400">{a.desc}</span>
-                </span>
-                <span className="hidden text-[11px] text-slate-400 sm:block">{a.email}</span>
-              </button>
-            ))}
-          </div>
-          <p className="mt-4 text-center text-xs text-slate-400">Password semua akun demo: <code className="rounded bg-slate-100 px-1">Passw0rd!</code></p>
+              <div className="space-y-2">
+                {ACCOUNTS.map((a) => (
+                  <button
+                    key={a.email}
+                    disabled={busy}
+                    onClick={() => doLogin(a.email, PASSWORD)}
+                    className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-brand-300 hover:bg-brand-50 disabled:opacity-50"
+                  >
+                    <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${a.color}`}>
+                      <Icon name="user" width={18} height={18} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-slate-800">{a.role}</span>
+                      <span className="block text-xs text-slate-400">{a.desc}</span>
+                    </span>
+                    <span className="hidden text-[11px] text-slate-400 sm:block">{a.email}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-4 text-center text-xs text-slate-400">Password semua akun demo: <code className="rounded bg-slate-100 px-1">Passw0rd!</code></p>
+            </>
+          ) : (
+            <p className="mt-6 text-center text-sm text-slate-500">
+              Belum punya akun?{' '}
+              <Link href="/register" className="font-semibold text-brand-600 hover:text-brand-700">
+                Daftar di sini
+              </Link>
+            </p>
+          )}
         </div>
       </div>
     </div>

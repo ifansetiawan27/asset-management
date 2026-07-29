@@ -36,6 +36,15 @@ export class User {
   @Column({ name: 'mfa_enabled', default: false })
   mfaEnabled: boolean;
 
+  /**
+   * Hash password (bcrypt) untuk autentikasi email/password lokal.
+   * `select: false` -> tidak ikut terbawa pada query biasa (mis. GET /users)
+   * agar hash tidak pernah bocor; login mengambilnya secara eksplisit.
+   * Nullable: user hasil SSO/seed lama boleh tidak punya password.
+   */
+  @Column({ name: 'password_hash', type: 'varchar', length: 255, nullable: true, select: false })
+  passwordHash: string | null;
+
   @ManyToMany(() => Role, { eager: true })
   @JoinTable({
     name: 'user_roles',
