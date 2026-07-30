@@ -18,7 +18,16 @@ async function bootstrap(): Promise<void> {
       forbidNonWhitelisted: true,
     }),
   );
-  app.enableCors();
+
+  // CORS: izinkan semua origin (termasuk Cloudflare Pages & localhost).
+  // Untuk produksi yang lebih ketat, ganti dengan daftar origin eksplisit:
+  // origin: ['https://asset-management-9fk.pages.dev', 'http://localhost:3003']
+  app.enableCors({
+    origin: true,           // reflect request origin (izinkan semua)
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-ID'],
+  });
 
   // Swagger UI (live API preview) di /docs
   const swaggerConfig = new DocumentBuilder()

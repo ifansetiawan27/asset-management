@@ -148,7 +148,16 @@ export class AuthService {
 
   /**
    * Lupa password: generate password sementara, hash & simpan ke DB,
-   * kirim via email. Selalu mengembalikan sukses (tidak bocorkan email terdaftar).
+   * lalu kirim via email.
+   *
+   * Urutan aman:
+   * 1. Update password di DB (dalam transaksi).
+   * 2. Kirim email — jika gagal, exception menyebabkan transaksi di-ROLLBACK
+   *    sehingga password lama tetap berlaku dan user tidak terkunci.
+   * 3. Jika email tidak dikonfigurasi (stub mode), password tetap di-reset
+   *    dan temp password di-log ke console (berguna untuk development).
+   *
+   * Tidak pernah mengekspos apakah email terdaftar (anti-enumeration).
    */
   async forgotPassword(email: string): Promise<void> {
     const normEmail = email.trim().toLowerCase();
@@ -160,7 +169,7 @@ export class AuthService {
         .andWhere('LOWER(u.email) = :e', { e: normEmail })
         .getOne();
 
-      // Jika email tidak ditemukan, diam-diam keluar (cegah email enumeration).
+      // Email tidak terdaftar → diam-diam keluar (cegah email enumeration).
       if (!user) {
         this.logger.warn(`forgotPassword: email tidak ditemukan (${normEmail})`);
         return;
@@ -169,19 +178,23 @@ export class AuthService {
       const tempPassword = this.generateTempPassword();
       const passwordHash = await bcrypt.hash(tempPassword, BCRYPT_ROUNDS);
 
-      // Update password_hash langsung via raw query untuk menghindari masalah select:false.
+      // Update password di DB. Jika sendMail di bawah melempar exception,
+      // TypeORM akan me-rollback transaksi ini → password lama tetap aman.
       await em.query(
         `UPDATE app_user SET password_hash = $1, updated_at = now() WHERE id = $2`,
         [passwordHash, user.id],
       );
 
+      // Kirim email. Jika SMTP tidak dikonfigurasi (stub mode), temp password
+      // diteruskan via devData agar muncul di console log.
       await this.mailService.sendMail(
         normEmail,
         'Reset Password — AMS Asset Management',
         this.buildResetEmailHtml(user.fullName, tempPassword),
+        { 'Temp Pass': tempPassword, 'User': user.fullName },
       );
 
-      this.logger.log(`forgotPassword: password sementara dikirim ke ${normEmail}`);
+      this.logger.log(`forgotPassword: berhasil untuk ${normEmail}`);
     });
   }
 
