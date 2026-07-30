@@ -71,6 +71,14 @@ export function apiPatch<T>(path: string, body: unknown): Promise<T> {
   }).then((r) => handle<T>(r));
 }
 
+export function apiDelete(path: string): Promise<void> {
+  if (isDemo()) return Promise.resolve();
+  return fetch(`${API_BASE}${path}`, {
+    method: 'DELETE',
+    headers: buildHeaders(false),
+  }).then((r) => handle<void>(r));
+}
+
 export async function apiGetText(path: string): Promise<string> {
   if (isDemo()) return demoRequestText(path);
   const res = await fetch(`${API_BASE}${path}`, { headers: buildHeaders(false), cache: 'no-store' });
