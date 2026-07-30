@@ -10,8 +10,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="id">
-      <body>
+    /*
+     * translate="no"  → mencegah Microsoft Translator / browser extension
+     *                   menambahkan atribut msttexthash / data-msttranslated
+     *                   ke DOM, yang menyebabkan React hydration mismatch.
+     * suppressHydrationWarning → izinkan perbedaan kecil server↔client
+     *   yang tidak mempengaruhi render (mis. ekstensi browser lain).
+     */
+    <html lang="id" translate="no">
+      <body suppressHydrationWarning>
         <AuthGate>{children}</AuthGate>
       </body>
     </html>

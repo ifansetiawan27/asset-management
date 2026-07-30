@@ -1,6 +1,6 @@
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { ReactNode, useEffect, useState } from 'react';
 
 import { AppShell } from './app-shell';
@@ -11,7 +11,6 @@ const LANDING_URL = process.env.NEXT_PUBLIC_LANDING_URL ?? '/landing.html';
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -57,7 +56,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
   if (!mounted || !getToken()) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100 text-sm text-slate-400">
+      // suppressHydrationWarning: ekstensi browser (mis. Microsoft Translator)
+      // bisa menambah atribut msttexthash ke elemen ini dan menyebabkan
+      // hydration mismatch. Suppress hanya pada elemen pembungkus ini.
+      <div
+        suppressHydrationWarning
+        className="flex min-h-screen items-center justify-center bg-slate-100 text-sm text-slate-400"
+      >
         Memuat...
       </div>
     );
