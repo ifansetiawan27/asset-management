@@ -47,18 +47,33 @@ export class BillingService {
   }
 
   private async getOrCreate(em: EntityManager): Promise<Subscription> {
-    const existing = await em.find(Subscription, { take: 1 });
-    if (existing.length > 0) {
-      return existing[0];
+    const tenantId = getTenantId() as string;
+
+    // Coba temukan subscription yang sudah ada untuk tenant ini
+    const existing = await em.findOne(Subscription, { where: { tenantId } });
+    if (existing) return existing;
+
+    // Jika belum ada, buat default — tangani race condition:
+    // Billing page memanggil /subscription DAN /usage secara paralel,
+    // keduanya bisa masuk sini sebelum salah satu sempat INSERT.
+    // Solusi: tangkap error unique_violation (23505) dan ambil ulang.
+    try {
+      const subscription = em.create(Subscription, {
+        tenantId,
+        planCode: PlanCode.STANDARD,
+        status: SubscriptionStatus.ACTIVE,
+        seats: 10,
+        assetQuota: 1000,
+        currentPeriodStart: new Date(),
+      });
+      return await em.save(subscription);
+    } catch (err: unknown) {
+      // PostgreSQL 23505 = unique_violation — request lain sudah INSERT duluan
+      if ((err as { code?: string }).code === '23505') {
+        const found = await em.findOne(Subscription, { where: { tenantId } });
+        if (found) return found;
+      }
+      throw err;
     }
-    const subscription = em.create(Subscription, {
-      tenantId: getTenantId() as string,
-      planCode: PlanCode.STANDARD,
-      status: SubscriptionStatus.ACTIVE,
-      seats: 10,
-      assetQuota: 1000,
-      currentPeriodStart: new Date(),
-    });
-    return em.save(subscription);
   }
 }
