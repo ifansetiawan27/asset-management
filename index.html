@@ -1191,12 +1191,28 @@
 
 <script>
 /* ─── KONFIGURASI ──────────────────────────────────────────
-   API_URL  = backend NestJS  (port 3002 / URL produksi API)
-   APP_URL  = frontend Next.js (port 3003 / URL produksi web)
-   → Ganti kedua nilai ini sesuai environment produksi Anda.
+   APP_URL  = URL frontend Next.js (otomatis per environment)
+   API_URL  = URL backend NestJS   (otomatis per environment)
+   Di produksi, ganti placeholder API URL di bawah.
 ──────────────────────────────────────────────────────── */
-const API_URL = 'http://localhost:3002/api/v1';
-const APP_URL = 'http://localhost:3003';
+const APP_URL = (function () {
+  const h = window.location.hostname;
+  if (h === 'localhost' || h === '127.0.0.1') {
+    return window.location.protocol + '//' + h + ':3003';
+  }
+  // Produksi: URL Cloudflare Pages
+  return 'https://asset-management-9fk.pages.dev';
+}());
+
+const API_URL = (function () {
+  const h = window.location.hostname;
+  if (h === 'localhost' || h === '127.0.0.1') {
+    return window.location.protocol + '//' + h + ':3002/api/v1';
+  }
+  // Produksi: ganti dengan URL API NestJS yang sudah di-deploy
+  // Contoh: return 'https://api.domainanda.com/api/v1';
+  return 'https://URL-API-PRODUKSI/api/v1';
+}());
 
 /* ─── CEK TOKEN — jika sudah login, ubah tombol ke Dashboard ── */
 (function checkAuth() {
