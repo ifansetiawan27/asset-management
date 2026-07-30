@@ -2,7 +2,11 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+
+// Jika ada NEXT_PUBLIC_LANDING_URL, redirect ke sana.
+// Halaman ini tetap tersedia sebagai fallback Demo Mode.
+const LANDING_URL = process.env.NEXT_PUBLIC_LANDING_URL;
 
 import { Icon } from '@/components/icons';
 import { Button, ErrorBox, Field, Input } from '@/components/ui';
@@ -25,6 +29,13 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState(isDemo() ? 'superadmin@demo.local' : '');
   const [password, setPassword] = useState(isDemo() ? PASSWORD : '');
+
+  // Redirect ke landing page jika bukan demo mode
+  useEffect(() => {
+    if (!isDemo() && LANDING_URL) {
+      window.location.replace(LANDING_URL);
+    }
+  }, []);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 

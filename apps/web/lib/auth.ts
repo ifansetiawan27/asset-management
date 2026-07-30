@@ -101,9 +101,13 @@ export async function register(
   window.localStorage.setItem(TOKEN_KEY, json.accessToken);
 }
 
+/** URL halaman landing (entry point autentikasi). Dikonfigurasi via env var. */
+const LANDING_URL =
+  process.env.NEXT_PUBLIC_LANDING_URL ?? '/landing.html';
+
 export function logout(): void {
   if (typeof window !== 'undefined') {
     window.localStorage.removeItem(TOKEN_KEY);
-    window.location.href = '/login';
+    window.location.href = LANDING_URL;
   }
 }

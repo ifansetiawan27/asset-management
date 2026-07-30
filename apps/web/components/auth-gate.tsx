@@ -6,6 +6,9 @@ import { ReactNode, useEffect, useState } from 'react';
 import { AppShell } from './app-shell';
 import { getToken } from '@/lib/auth';
 
+/** URL landing page — entry point untuk login/daftar. */
+const LANDING_URL = process.env.NEXT_PUBLIC_LANDING_URL ?? '/landing.html';
+
 export function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -38,13 +41,16 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setMounted(true);
   }, []);
 
+  // Rute yang boleh diakses tanpa token (fallback Next.js pages)
   const isPublic = pathname === '/login' || pathname === '/register';
 
   useEffect(() => {
-    if (mounted && !isPublic && !getToken()) {
-      router.replace('/login');
+    if (!mounted) return;
+    if (!isPublic && !getToken()) {
+      // Arahkan ke landing page (bukan /login Next.js)
+      window.location.href = LANDING_URL;
     }
-  }, [mounted, isPublic, pathname, router]);
+  }, [mounted, isPublic, pathname]);
 
   if (isPublic) {
     return <>{children}</>;

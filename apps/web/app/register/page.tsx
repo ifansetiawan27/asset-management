@@ -2,6 +2,9 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+
+const LANDING_URL = process.env.NEXT_PUBLIC_LANDING_URL;
 import { useState } from 'react';
 
 import { Button, ErrorBox, Field, Input } from '@/components/ui';
@@ -11,6 +14,13 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function RegisterPage() {
   const router = useRouter();
+
+  // Redirect ke landing page yang sudah memiliki modal register
+  useEffect(() => {
+    if (LANDING_URL) {
+      window.location.replace(LANDING_URL + '#reg');
+    }
+  }, []);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
