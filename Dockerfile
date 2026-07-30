@@ -3,14 +3,14 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Salin manifest monorepo
-COPY package.json package-lock.json ./
+# Salin manifest monorepo + tsconfig root (diperlukan oleh apps/api/tsconfig.json)
+COPY package.json package-lock.json tsconfig.base.json ./
 COPY apps/api/package.json ./apps/api/
 
-# Install dependencies (workspace-aware, skip scripts)
+# Install dependencies (workspace-aware)
 RUN npm ci --ignore-scripts
 
-# Salin source API
+# Salin source API (termasuk tsconfig.json & nest-cli.json)
 COPY apps/api ./apps/api
 
 # Build NestJS
