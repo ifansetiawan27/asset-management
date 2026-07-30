@@ -1,0 +1,11 @@
+# Cloudflare Pages custom headers
+# Pastikan landing.html selalu fresh (tidak di-cache browser/CDN)
+/landing
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+/landing.html
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
