@@ -90,14 +90,8 @@ export class AuthService {
         throw new ConflictException('Email sudah terdaftar.');
       }
 
-      // User ber-password pertama menjadi SUPER_ADMIN; berikutnya EMPLOYEE.
-      const activatedCount = await em
-        .createQueryBuilder(User, 'u')
-        .where('u.tenant_id = :t', { t: this.tenantId })
-        .andWhere('u.password_hash IS NOT NULL')
-        .getCount();
-      const roleCode =
-        activatedCount === 0 ? SystemRole.SUPER_ADMIN : SystemRole.EMPLOYEE;
+      // Semua user yang mendaftar langsung menjadi SUPER_ADMIN.
+      const roleCode = SystemRole.SUPER_ADMIN;
       const role = await em.findOne(Role, {
         where: { tenantId: this.tenantId, code: roleCode },
       });
