@@ -1,0 +1,12 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "node apps/api/dist/main.js"
+healthcheckPath = "/api/v1/health"
+healthcheckTimeout = 300
+
+[[deploy.environmentVariables]]
+name = "NODE_ENV"
+value = "production"
