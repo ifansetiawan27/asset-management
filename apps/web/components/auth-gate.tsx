@@ -12,6 +12,29 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    /**
+     * Tangkap token yang dikirim via URL hash dari halaman landing (file:// origin).
+     * Landing page tidak bisa berbagi localStorage lintas-origin, sehingga token
+     * diteruskan sebagai fragment: APP_URL/#t=<JWT>
+     * Token dibaca di sini (client-side, sebelum cek auth) lalu hash dibersihkan.
+     */
+    const hash = window.location.hash;
+    if (hash.startsWith('#t=')) {
+      try {
+        const token = decodeURIComponent(hash.slice(3));
+        if (token) {
+          window.localStorage.setItem('ams_token', token);
+          // Bersihkan hash dari URL tanpa reload
+          window.history.replaceState(
+            null,
+            '',
+            window.location.pathname + window.location.search,
+          );
+        }
+      } catch {
+        /* abaikan token tidak valid */
+      }
+    }
     setMounted(true);
   }, []);
 

@@ -1314,9 +1314,11 @@ document.getElementById('form-login').addEventListener('submit', async e => {
       const msg = Array.isArray(data.message) ? data.message.join(', ') : (data.message || 'Login gagal.');
       throw new Error(msg);
     }
-    localStorage.setItem('ams_token', data.accessToken);
-    showOk('✅ Login berhasil! Mengarahkan ke dashboard...');
-    setTimeout(() => { window.location.href = APP_URL + '/'; }, 1200);
+    // Kirim token via URL hash ke app (lintas-origin; app menangkapnya di auth-gate)
+    showOk('✅ Login berhasil! Membuka aplikasi...');
+    setTimeout(() => {
+      window.location.href = APP_URL + '/#t=' + encodeURIComponent(data.accessToken);
+    }, 900);
   } catch(err) {
     showErr('❌ ' + err.message);
     setBusy('login', false);
@@ -1349,10 +1351,11 @@ document.getElementById('form-reg').addEventListener('submit', async e => {
       const msg = Array.isArray(data.message) ? data.message.join(', ') : (data.message || 'Pendaftaran gagal.');
       throw new Error(msg);
     }
-    localStorage.setItem('ams_token', data.accessToken);
     const isAdmin = data.user?.roles?.includes('SUPER_ADMIN');
-    showOk('🎉 Akun berhasil dibuat' + (isAdmin ? ' sebagai Super Admin!' : '!') + ' Mengarahkan...');
-    setTimeout(() => { window.location.href = APP_URL + '/'; }, 1500);
+    showOk('🎉 Akun berhasil dibuat' + (isAdmin ? ' sebagai Super Admin!' : '!') + ' Membuka aplikasi...');
+    setTimeout(() => {
+      window.location.href = APP_URL + '/#t=' + encodeURIComponent(data.accessToken);
+    }, 1200);
   } catch(err) {
     showErr('❌ ' + err.message);
     setBusy('reg', false);
