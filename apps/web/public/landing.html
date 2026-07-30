@@ -1154,7 +1154,29 @@
         <span class="mspin" id="sp-login"></span>
         <span id="btn-login-txt">Masuk ke Aplikasi →</span>
       </button>
-      <div class="mswitch">Belum punya akun? <a onclick="switchTab('reg')">Daftar di sini</a></div>
+      <div class="mswitch">
+        <a onclick="switchTab('forgot')" style="color:var(--t3);font-size:.72rem">Lupa password?</a>
+        &nbsp;·&nbsp;
+        Belum punya akun? <a onclick="switchTab('reg')">Daftar di sini</a>
+      </div>
+    </form>
+
+    <!-- FORGOT PASSWORD FORM -->
+    <form id="form-forgot" novalidate style="display:none">
+      <p style="font-size:.82rem;color:var(--t2);line-height:1.6;margin-bottom:1rem">
+        Masukkan email Anda. Password sementara akan dikirim ke kotak masuk Anda.
+      </p>
+      <div class="mfield">
+        <label for="fp-email">Email</label>
+        <input id="fp-email" type="email" placeholder="nama@perusahaan.com" autocomplete="email" />
+      </div>
+      <button type="submit" class="msubmit" id="btn-forgot">
+        <span class="mspin" id="sp-forgot"></span>
+        <span id="btn-forgot-txt">Kirim Password Sementara →</span>
+      </button>
+      <div class="mswitch" style="margin-top:.9rem">
+        <a onclick="switchTab('login')">← Kembali ke Login</a>
+      </div>
     </form>
 
     <!-- REGISTER FORM -->
@@ -1258,11 +1280,14 @@ function closeModal() {
   document.body.style.overflow = '';
 }
 function switchTab(tab) {
-  const login = tab === 'login';
-  document.getElementById('form-login').style.display = login ? '' : 'none';
-  document.getElementById('form-reg').style.display   = login ? 'none' : '';
-  document.getElementById('tab-login').classList.toggle('active',  login);
-  document.getElementById('tab-reg').classList.toggle('active',   !login);
+  const login  = tab === 'login';
+  const reg    = tab === 'reg';
+  const forgot = tab === 'forgot';
+  document.getElementById('form-login').style.display  = login  ? '' : 'none';
+  document.getElementById('form-reg').style.display    = reg    ? '' : 'none';
+  document.getElementById('form-forgot').style.display = forgot ? '' : 'none';
+  document.getElementById('tab-login').classList.toggle('active', login);
+  document.getElementById('tab-reg').classList.toggle('active',   reg);
   clearMsgs();
 }
 function showErr(msg) {
@@ -1285,9 +1310,10 @@ function setBusy(form, busy) {
   const txt = document.getElementById('btn-' + form + '-txt');
   if (btn) btn.disabled = busy;
   if (sp)  sp.classList.toggle('show', busy);
-  if (txt) txt.textContent = busy
-    ? (form === 'login' ? 'Memproses...' : 'Mendaftarkan...')
-    : (form === 'login' ? 'Masuk ke Aplikasi →' : 'Daftar Sekarang →');
+  const labels = { login: ['Memproses...', 'Masuk ke Aplikasi →'],
+                   reg:   ['Mendaftarkan...', 'Daftar Sekarang →'],
+                   forgot:['Mengirim...', 'Kirim Password Sementara →'] };
+  if (txt && labels[form]) txt.textContent = busy ? labels[form][0] : labels[form][1];
 }
 
 /* tutup modal saat klik backdrop atau ESC */
@@ -1375,6 +1401,32 @@ document.getElementById('form-reg').addEventListener('submit', async e => {
   } catch(err) {
     showErr('❌ ' + err.message);
     setBusy('reg', false);
+  }
+});
+
+/* ─── FORM LUPA PASSWORD ────────────────────────────────── */
+document.getElementById('form-forgot').addEventListener('submit', async e => {
+  e.preventDefault();
+  clearMsgs();
+  const email = document.getElementById('fp-email').value.trim();
+  if (!email.includes('@')) return showErr('Masukkan email yang valid.');
+
+  setBusy('forgot', true);
+  try {
+    const res  = await fetch(API_URL + '/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Gagal mengirim email.');
+    showOk('✅ ' + data.message);
+    document.getElementById('fp-email').value = '';
+    setTimeout(() => switchTab('login'), 4000);
+  } catch(err) {
+    showErr('❌ ' + err.message);
+  } finally {
+    setBusy('forgot', false);
   }
 });
 

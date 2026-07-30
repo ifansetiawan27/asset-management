@@ -18,6 +18,14 @@ export interface AppConfig {
   storage: { dir: string };
   jwt: { secret: string; expiresIn: string };
   auth: { devBypass: boolean; devTenantId: string; defaultTenantId: string };
+  mail: {
+    host: string;
+    port: number;
+    secure: boolean;
+    user: string;
+    pass: string;
+    from: string;
+  };
 }
 
 export default (): AppConfig => {
@@ -67,6 +75,17 @@ export default (): AppConfig => {
         process.env.AUTH_DEFAULT_TENANT_ID ??
         process.env.AUTH_DEV_TENANT_ID ??
         '11111111-1111-1111-1111-111111111111',
+    },
+    // SMTP untuk notifikasi email (lupa password, dll.).
+    // Isi MAIL_HOST, MAIL_USER, MAIL_PASS di .env untuk mengaktifkan.
+    // Jika tidak diisi, email hanya di-log (stub mode).
+    mail: {
+      host: process.env.MAIL_HOST ?? '',
+      port: parseInt(process.env.MAIL_PORT ?? '587', 10),
+      secure: (process.env.MAIL_SECURE ?? 'false') === 'true',
+      user: process.env.MAIL_USER ?? '',
+      pass: process.env.MAIL_PASS ?? '',
+      from: process.env.MAIL_FROM ?? 'AMS <no-reply@yourdomain.com>',
     },
   };
 };
