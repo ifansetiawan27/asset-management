@@ -694,19 +694,55 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return jsonResp({ message: 'Ditandai dibaca.' }, 200, request);
     }
 
-    /* Reports — kembalikan data mentah dari tabel terkait */
+    /* Reports — format { type, count, rows } sesuai ReportResponse di frontend */
     if (path.match(/^\/reports\//)) {
-      const rtype = path.split('/')[2];
+      const parts   = path.split('/');   // ['', 'reports', 'inventory'] atau ['', 'reports', 'inventory', 'export']
+      const rtype   = parts[2] ?? 'inventory';
+      const isExport = parts[3] === 'export';
+
       const tableMap: Record<string, string> = {
-        inventory: 'asset', maintenance: 'maintenance_ticket',
-        disposal: 'disposal_request', depreciation: 'depreciation_entry',
-        assignment: 'asset_assignment',
+        inventory:   'asset',
+        maintenance: 'maintenance_ticket',
+        disposal:    'disposal_request',
+        depreciation:'depreciation_entry',
+        assignment:  'asset_assignment',
+        location:    'asset',
       };
       const tbl = tableMap[rtype] ?? 'asset';
       const { data } = await sb(env).from(tbl).select('*')
         .eq('tenant_id', env.AUTH_DEFAULT_TENANT_ID ?? DEFAULT_TENANT)
-        .order('created_at', { ascending: false }).limit(500);
-      return jsonResp(data ?? [], 200, request);
+        .order('created_at', { ascending: false }).limit(1000);
+
+      const rows = data ?? [];
+
+      /* ── Export CSV ────────────────────────────────── */
+      if (isExport) {
+        if (rows.length === 0) {
+          return new Response('Tidak ada data', { status: 200, headers: { ...cors(request), 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="report-${rtype}.csv"` } });
+        }
+        const cols = Object.keys(rows[0]);
+        const csv  = [
+          cols.join(','),
+          ...rows.map((r: Record<string, unknown>) =>
+            cols.map(c => {
+              const v = r[c];
+              if (v === null || v === undefined) return '';
+              const s = String(v);
+              return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+            }).join(',')
+          ),
+        ].join('\n');
+        return new Response('\uFEFF' + csv, {   // BOM agar Excel baca UTF-8 dengan benar
+          headers: {
+            ...cors(request),
+            'Content-Type': 'text/csv; charset=utf-8',
+            'Content-Disposition': `attachment; filename="report-${rtype}.csv"`,
+          },
+        });
+      }
+
+      /* ── JSON Report ────────────────────────────────── */
+      return jsonResp({ type: rtype, count: rows.length, rows }, 200, request);
     }
 
     /* Billing */

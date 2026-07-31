@@ -57,7 +57,14 @@ export default function ReportsPage() {
     }
   }
 
-  const columns = data && data.rows.length > 0 ? Object.keys(data.rows[0]) : [];
+  // Guard: normalisasi response — menerima array langsung ATAU { type, count, rows }
+  const normalizedData: ReportResponse | null = !data ? null
+    : Array.isArray(data)
+      ? { type, count: (data as unknown[]).length, rows: data as Array<Record<string, unknown>> }
+      : data;
+  const columns = normalizedData && normalizedData.rows?.length > 0
+    ? Object.keys(normalizedData.rows[0])
+    : [];
 
   return (
     <>
@@ -65,7 +72,7 @@ export default function ReportsPage() {
         title="Laporan"
         subtitle="Laporan aset dengan ekspor CSV"
         action={
-          <Button variant="secondary" onClick={downloadCsv} disabled={!data || data.rows.length === 0}>
+          <Button variant="secondary" onClick={downloadCsv} disabled={!normalizedData || !normalizedData.rows?.length}>
             Unduh CSV
           </Button>
         }
@@ -81,15 +88,15 @@ export default function ReportsPage() {
               </option>
             ))}
           </Select>
-          {data ? <span className="text-sm text-slate-400">{data.count} baris</span> : null}
+          {normalizedData ? <span className="text-sm text-slate-400">{normalizedData.count} baris</span> : null}
         </div>
       </Card>
 
       {error ? <ErrorBox message={error} /> : null}
       {loading ? <Spinner /> : null}
 
-      {data && !loading ? (
-        data.rows.length === 0 ? (
+      {normalizedData && !loading ? (
+        !normalizedData.rows?.length ? (
           <EmptyState title="Tidak ada data" hint="Belum ada data untuk laporan ini." />
         ) : (
           <Card>
@@ -105,7 +112,7 @@ export default function ReportsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.rows.map((row, i) => (
+                  {normalizedData.rows.map((row, i) => (
                     <tr key={i} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
                       {columns.map((c) => (
                         <td key={c} className="px-4 py-2 text-slate-700">
