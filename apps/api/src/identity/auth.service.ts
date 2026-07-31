@@ -204,8 +204,14 @@ export class AuthService {
       .join('');
   }
 
+  /** Escape HTML untuk mencegah XSS di body email. */
+  private escHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
   /** Template HTML email reset password. */
   private buildResetEmailHtml(fullName: string, tempPassword: string): string {
+    const safeName = this.escHtml(fullName);
     return `<!DOCTYPE html>
 <html lang="id">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -224,7 +230,7 @@ export class AuthService {
         <!-- Body -->
         <tr>
           <td style="padding:36px 40px">
-            <p style="margin:0 0 12px;font-size:15px;color:#1e293b">Halo, <strong>${fullName}</strong>,</p>
+            <p style="margin:0 0 12px;font-size:15px;color:#1e293b">Halo, <strong>${safeName}</strong>,</p>
             <p style="margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6">
               Kami menerima permintaan reset password untuk akun AMS Anda. Berikut adalah <strong>password sementara</strong> yang dapat Anda gunakan untuk masuk:
             </p>

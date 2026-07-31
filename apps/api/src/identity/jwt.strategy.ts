@@ -35,7 +35,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       algorithms: ['HS256'],
-      secretOrKey: config.get<string>('jwt.secret') ?? '',
+      secretOrKey: (() => {
+      const s = config.get<string>('jwt.secret');
+      if (!s) throw new Error('JWT_SECRET tidak dikonfigurasi. Set JWT_SECRET di .env.');
+      return s;
+    })(),
       passReqToCallback: true,
     });
   }
@@ -73,6 +77,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const store = tenantStorage.getStore();
     if (store && tenantId) {
       store.tenantId = tenantId;
+    }
+
+    if (!payload.sub || typeof payload.sub !== 'string') {
+      throw new Error('Token tidak valid: sub kosong.');
     }
 
     return {

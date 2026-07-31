@@ -92,7 +92,8 @@ function sb(env: Env): SupabaseClient {
 
 /* ── Build paginated meta ─────────────────────────────────── */
 function paginatedResp(data: unknown[], total: number, page: number, limit: number) {
-  return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } };
+  const safeLimit = limit > 0 ? limit : 1;
+  return { data, meta: { page, limit, total, totalPages: Math.ceil(total / safeLimit) || 1 } };
 }
 
 /* ── Activity Log helper ──────────────────────────────────── */
@@ -177,37 +178,33 @@ async function handleLogin(req: Request, env: Env): Promise<Response> {
   const tenantId = env.AUTH_DEFAULT_TENANT_ID ?? DEFAULT_TENANT;
   const client   = sb(env);
 
-  // Ambil user beserta password hash dan roles
-  const { data: users } = await client
+  // Satu query: ambil user + password_hash + roles (left join agar user tanpa role tetap bisa login)
+  const { data: userList, error: loginErr } = await client
     .from('app_user')
-    .select(`
-      id, email, full_name, status,
-      user_roles!inner ( role:role_id ( code, name ) )
-    `)
+    .select('id, email, full_name, status, password_hash, user_roles ( role:role_id ( code, name ) )')
     .eq('tenant_id', tenantId)
     .ilike('email', email.trim())
-    .not('password_hash', 'is', null)
     .limit(1);
 
-  // Ambil password_hash terpisah (kolom select:false di entity)
-  const { data: hashRow } = await client
-    .from('app_user')
-    .select('password_hash')
-    .ilike('email', email.trim())
-    .eq('tenant_id', tenantId)
-    .single();
+  if (loginErr) return errResp('Gagal memproses login.', 500, req);
 
-  if (!users || users.length === 0 || !hashRow?.password_hash) {
+  const userRow = userList?.[0] as Record<string, unknown> | undefined;
+  if (!userRow || !userRow.password_hash) {
     return errResp('Email atau password salah.', 401, req);
   }
 
-  const user = users[0];
-  const valid = await bcrypt.compare(password, hashRow.password_hash as string);
+  // Cek status akun (sebelum bcrypt untuk efisiensi)
+  if ((userRow.status as string) !== 'active') {
+    return errResp('Akun tidak aktif. Hubungi administrator.', 401, req);
+  }
+
+  const valid = await bcrypt.compare(password, userRow.password_hash as string);
   if (!valid) return errResp('Email atau password salah.', 401, req);
 
-  const roles: string[] = (user as Record<string, unknown[]>).user_roles
-    ?.map((r: Record<string, Record<string, string>>) => r.role?.code)
-    .filter(Boolean) ?? [];
+  const user = userRow;
+  const roles: string[] = ((userRow.user_roles ?? []) as Array<Record<string, Record<string, string>>>)
+    .map(r => r.role?.code)
+    .filter(Boolean);
 
   const token = await signToken(
     { sub: user.id, email: user.email, roles, tenantId },
@@ -244,14 +241,7 @@ async function handleRegister(req: Request, env: Env): Promise<Response> {
 
   if (existing && existing.length > 0) return errResp('Email sudah terdaftar.', 409, req);
 
-  // Hitung berapa user aktif → tentukan role
-  const { count } = await client
-    .from('app_user')
-    .select('id', { count: 'exact', head: true })
-    .eq('tenant_id', tenantId)
-    .not('password_hash', 'is', null);
-
-  // Semua user baru langsung SUPER_ADMIN
+  // Semua user baru langsung SUPER_ADMIN (sesuai konfigurasi sistem)
   const roleCode = 'SUPER_ADMIN';
 
   // Ambil role ID
@@ -274,8 +264,13 @@ async function handleRegister(req: Request, env: Env): Promise<Response> {
 
   if (insErr) return errResp(insErr.message, 500, req);
 
-  // Assign role
-  await client.from('user_roles').insert({ user_id: uid, role_id: roleRow.id });
+  // Assign role — pastikan berhasil agar tidak ada user tanpa role
+  const { error: roleInsErr } = await client.from('user_roles').insert({ user_id: uid, role_id: roleRow.id });
+  if (roleInsErr) {
+    // Rollback: hapus user yang baru dibuat
+    await client.from('app_user').delete().eq('id', uid);
+    return errResp('Gagal menetapkan role: ' + roleInsErr.message, 500, req);
+  }
 
   const token = await signToken(
     { sub: uid, email: email.trim().toLowerCase(), roles: [roleCode], tenantId },
@@ -315,14 +310,15 @@ async function handleForgotPassword(req: Request, env: Env): Promise<Response> {
   const tempPass = genTempPass();
   const hash     = await bcrypt.hash(tempPass, BCRYPT_ROUNDS);
 
-  await client
+  const { error: updErr } = await client
     .from('app_user')
     .update({ password_hash: hash, updated_at: new Date().toISOString() })
     .eq('id', user.id);
 
-  // Kirim email via nodemailer-style SMTP (fetch ke SMTP over HTTP tidak didukung di Workers)
-  // → gunakan Supabase Anon auth reset, atau log temp password di console.
-  console.log(`[ForgotPassword] ${normEmail} → temp password: ${tempPass}`);
+  if (updErr) return errResp('Gagal mereset password, coba lagi.', 500, req);
+
+  // LOG: masking password (jangan tampilkan plaintext di log produksi)
+  console.log(`[ForgotPassword] ${normEmail} → temp: ${tempPass.slice(0, 3)}***`);
 
   // Jika ada konfigurasi SMTP via env, gunakan Mailgun/Resend/EmailJS
   // (Implementasi email via fetch dapat ditambahkan di sini)
@@ -335,7 +331,9 @@ async function handleForgotPassword(req: Request, env: Env): Promise<Response> {
 ══════════════════════════════════════════════════════════ */
 
 function getPage(url: URL) {
-  return { page: parseInt(url.searchParams.get('page') ?? '1'), limit: parseInt(url.searchParams.get('limit') ?? '20') };
+  const page  = Math.max(1, parseInt(url.searchParams.get('page')  ?? '1',  10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') ?? '20', 10) || 20));
+  return { page, limit };
 }
 
 async function requireAuth(req: Request, env: Env) {
@@ -407,7 +405,9 @@ async function handleAssets(req: Request, url: URL, env: Env): Promise<Response>
 
   if (req.method === 'GET') {
     const { page, limit } = getPage(url);
-    const q      = url.searchParams.get('q') ?? '';
+    const rawQ   = url.searchParams.get('q') ?? '';
+    // Sanitasi: hapus karakter khusus PostgREST untuk mencegah filter injection
+    const q      = rawQ.replace(/[,()]/g, '').slice(0, 100);
     const status = url.searchParams.get('status') ?? '';
 
     let query = client.from('asset').select('*', { count: 'exact' })
@@ -555,9 +555,10 @@ async function handleTable(
     const { data, count, error } = await query;
     if (error) return errResp(error.message, 500, req);
 
-    // Jika tidak ada pagination dari query params, kembalikan array biasa
-    const paginate = url.searchParams.has('page');
-    return jsonResp(paginate ? paginatedResp(data ?? [], count ?? 0, page, limit) : (data ?? []), 200, req);
+    // Konversi ke camelCase + kembalikan dengan/tanpa paginasi
+    const camelData = camelize(data ?? []) as unknown[];
+    const paginate  = url.searchParams.has('page');
+    return jsonResp(paginate ? paginatedResp(camelData, count ?? 0, page, limit) : camelData, 200, req);
   }
 
   if (req.method === 'POST') {
@@ -602,8 +603,9 @@ async function handleUsers(req: Request, url: URL, env: Env): Promise<Response> 
     const { fullName, email, roleCode, password } = await req.json() as Record<string, string>;
     if (!email || !fullName || !roleCode || !password) return errResp('Semua field wajib diisi.', 400, req);
 
-    const existing = await client.from('app_user').select('id').ilike('email', email).eq('tenant_id', tid).single();
-    if (existing.data) return errResp('Email sudah terdaftar.', 409, req);
+    // Gunakan limit(1) bukan .single() agar tidak throw saat 0 rows
+    const { data: existList } = await client.from('app_user').select('id').ilike('email', email).eq('tenant_id', tid).limit(1);
+    if (existList && existList.length > 0) return errResp('Email sudah terdaftar.', 409, req);
 
     const { data: role } = await client.from('role').select('id').eq('tenant_id', tid).eq('code', roleCode).single();
     if (!role) return errResp('Role tidak ditemukan.', 400, req);
@@ -611,8 +613,15 @@ async function handleUsers(req: Request, url: URL, env: Env): Promise<Response> 
     const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const uid  = crypto.randomUUID();
 
-    await client.from('app_user').insert({ id: uid, tenant_id: tid, email: email.toLowerCase(), full_name: fullName, password_hash: hash, status: 'active' });
-    await client.from('user_roles').insert({ user_id: uid, role_id: role.id });
+    const { error: userInsErr } = await client.from('app_user')
+      .insert({ id: uid, tenant_id: tid, email: email.toLowerCase(), full_name: fullName, password_hash: hash, status: 'active' });
+    if (userInsErr) return errResp('Gagal membuat pengguna: ' + userInsErr.message, 500, req);
+
+    const { error: roleInsErr2 } = await client.from('user_roles').insert({ user_id: uid, role_id: role.id });
+    if (roleInsErr2) {
+      await client.from('app_user').delete().eq('id', uid);
+      return errResp('Gagal menetapkan role: ' + roleInsErr2.message, 500, req);
+    }
 
     const inviteActor = (await verifyToken(req, env.JWT_SECRET))?.sub as string | null;
     await createActivity(client, tid, inviteActor, 'USER_INVITED',
@@ -630,16 +639,23 @@ async function handleUserById(req: Request, id: string, env: Env): Promise<Respo
   const tid    = env.AUTH_DEFAULT_TENANT_ID ?? DEFAULT_TENANT;
 
   if (req.method === 'PATCH') {
-    // /users/:id/role
-    const { roleCode } = await req.json() as { roleCode: string };
-    const { data: role } = await client.from('role').select('id').eq('tenant_id', tid).eq('code', roleCode).single();
+    const body = await req.json() as { roleCode?: string };
+    if (!body.roleCode) return errResp('roleCode wajib diisi.', 400, req);
+    const { data: role } = await client.from('role').select('id').eq('tenant_id', tid).eq('code', body.roleCode).single();
     if (!role) return errResp('Role tidak ditemukan.', 400, req);
+    // Pastikan user milik tenant ini sebelum mengubah role
+    const { data: ownedUser } = await client.from('app_user').select('id').eq('id', id).eq('tenant_id', tid).single();
+    if (!ownedUser) return errResp('Pengguna tidak ditemukan.', 404, req);
     await client.from('user_roles').delete().eq('user_id', id);
-    await client.from('user_roles').insert({ user_id: id, role_id: role.id });
+    const { error: rIns } = await client.from('user_roles').insert({ user_id: id, role_id: role.id });
+    if (rIns) return errResp('Gagal mengubah role: ' + rIns.message, 500, req);
     return jsonResp({ message: 'Peran berhasil diubah.' }, 200, req);
   }
 
   if (req.method === 'DELETE') {
+    // Pastikan user milik tenant ini sebelum dihapus
+    const { data: ownedDel } = await client.from('app_user').select('id').eq('id', id).eq('tenant_id', tid).single();
+    if (!ownedDel) return errResp('Pengguna tidak ditemukan.', 404, req);
     await client.from('user_roles').delete().eq('user_id', id);
     const { error } = await client.from('app_user').delete().eq('id', id).eq('tenant_id', tid);
     if (error) return errResp(error.message, 500, req);
@@ -710,7 +726,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       /* GET /assets/:id/documents */
       if (sub === 'documents' && method === 'GET') {
         const { data } = await client.from('asset_document')
-          .select('*').eq('asset_id', assetId).order('created_at', { ascending: false });
+          .select('*').eq('asset_id', assetId).eq('tenant_id', tid).order('created_at', { ascending: false });
         return jsonResp(camelize(data ?? []), 200, request);
       }
 
@@ -720,34 +736,34 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const { data, error } = await client.from('asset_document')
           .insert({ ...body, asset_id: assetId, tenant_id: tid }).select().single();
         if (error) return errResp(error.message, 500, request);
-        return jsonResp(data, 201, request);
+        return jsonResp(camelize(data), 201, request);
       }
 
       /* GET /assets/:id/history */
       if (sub === 'history' && method === 'GET') {
         const { data } = await client.from('asset_history')
-          .select('*').eq('asset_id', assetId).order('occurred_at', { ascending: false });
+          .select('*').eq('asset_id', assetId).eq('tenant_id', tid).order('occurred_at', { ascending: false });
         return jsonResp(camelize(data ?? []), 200, request);
       }
 
       /* GET /assets/:id/depreciation */
       if (sub === 'depreciation' && method === 'GET') {
         const { data } = await client.from('depreciation_entry')
-          .select('*').eq('asset_id', assetId).order('period_year', { ascending: false });
+          .select('*').eq('asset_id', assetId).eq('tenant_id', tid).order('period_year', { ascending: false });
         return jsonResp(camelize(data ?? []), 200, request);
       }
 
       /* GET /assets/:id/maintenance-history */
       if (sub === 'maintenance-history' && method === 'GET') {
         const { data } = await client.from('maintenance_history')
-          .select('*').eq('asset_id', assetId).order('performed_at', { ascending: false });
+          .select('*').eq('asset_id', assetId).eq('tenant_id', tid).order('performed_at', { ascending: false });
         return jsonResp(camelize(data ?? []), 200, request);
       }
 
       /* GET /assets/:id/handovers */
       if (sub === 'handovers' && method === 'GET') {
         const { data } = await client.from('handover')
-          .select('*').eq('asset_id', assetId).order('created_at', { ascending: false });
+          .select('*').eq('asset_id', assetId).eq('tenant_id', tid).order('created_at', { ascending: false });
         return jsonResp(camelize(data ?? []), 200, request);
       }
 
@@ -799,9 +815,14 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (path.match(/^\/maintenance\/tickets\/[^/]+\/status$/)) {
       const mid = path.split('/')[3];
       const b   = await request.json() as Record<string, string>;
-      const { data, error } = await sb(env).from('maintenance_ticket').update({ status: b.status, updated_at: new Date().toISOString() }).eq('id', mid).select().single();
-      if (error) return errResp(error.message, 500, request);
-      return jsonResp(data, 200, request);
+      const VALID_TICKET_STATUSES = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CLOSED'];
+      if (!VALID_TICKET_STATUSES.includes(b.status)) return errResp('Status tidak valid.', 400, request);
+      const { data, error } = await sb(env).from('maintenance_ticket')
+        .update({ status: b.status, updated_at: new Date().toISOString() })
+        .eq('id', mid).eq('tenant_id', env.AUTH_DEFAULT_TENANT_ID ?? DEFAULT_TENANT)
+        .select().single();
+      if (error || !data) return errResp(error?.message ?? 'Tiket tidak ditemukan.', error ? 500 : 404, request);
+      return jsonResp(camelize(data), 200, request);
     }
 
     /* Audit */
@@ -816,8 +837,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const parts  = path.split('/');
       const aid    = parts[2];
       const action = parts[3];
-      const { data } = await sb(env).from('approval_request').update({ status: action === 'approve' ? 'APPROVED' : 'REJECTED', updated_at: new Date().toISOString() }).eq('id', aid).select().single();
-      return jsonResp(data, 200, request);
+      const newStatus = action === 'approve' ? 'APPROVED' : 'REJECTED';
+      const { data, error } = await sb(env).from('approval_request')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', aid).eq('tenant_id', env.AUTH_DEFAULT_TENANT_ID ?? DEFAULT_TENANT)
+        .select().single();
+      if (error || !data) return errResp(error?.message ?? 'Approval tidak ditemukan.', error ? 500 : 404, request);
+      return jsonResp(camelize(data), 200, request);
     }
 
     /* Notifications — mapping DB (body/channel/status) → frontend (message/type/read) */

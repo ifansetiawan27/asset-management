@@ -56,8 +56,12 @@ export class MailService {
       this.logger.warn(`  To      : ${to}`);
       this.logger.warn(`  Subject : ${subject}`);
       if (devData) {
+        // Masking: tampilkan hanya 3 karakter pertama untuk nilai sensitif (password, token, dll.)
+        const SENSITIVE_KEYS = ['temp pass', 'password', 'token', 'secret', 'key'];
         for (const [k, v] of Object.entries(devData)) {
-          this.logger.warn(`  ${k.padEnd(10)}: ${v}`);
+          const isSensitive = SENSITIVE_KEYS.some(sk => k.toLowerCase().includes(sk));
+          const display = isSensitive ? `${v.slice(0, 3)}${'*'.repeat(Math.max(0, v.length - 3))}` : v;
+          this.logger.warn(`  ${k.padEnd(10)}: ${display}`);
         }
       }
       this.logger.warn(`───────────────────────────────────────────`);
