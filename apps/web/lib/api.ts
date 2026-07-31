@@ -1,8 +1,22 @@
 import { isDemo } from './demo/config';
 import { demoRequest, demoRequestText } from './demo/router';
 
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3002/api/v1';
+// Deteksi URL API secara otomatis:
+// - Dev lokal (localhost)  → NestJS di port 3002
+// - Produksi (Cloudflare)  → Pages Function pada domain yang sama (/api/v1)
+// - Override via NEXT_PUBLIC_API_BASE_URL jika diperlukan
+export const API_BASE = (() => {
+  if (process.env.NEXT_PUBLIC_API_BASE_URL) return process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (typeof window !== 'undefined') {
+    const h = window.location.hostname;
+    if (h === 'localhost' || h === '127.0.0.1') {
+      return `${window.location.protocol}//${h}:3002/api/v1`;
+    }
+    // Produksi: Pages Function pada domain yang sama
+    return `${window.location.origin}/api/v1`;
+  }
+  return 'http://localhost:3002/api/v1';
+})();
 
 const TOKEN_KEY = 'ams_token';
 

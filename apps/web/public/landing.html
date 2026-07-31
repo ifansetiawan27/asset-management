@@ -1224,11 +1224,11 @@ const APP_URL = window.location.origin;   // otomatis: domain yang sama dengan a
 const API_URL = (function () {
   const h = window.location.hostname;
   if (h === 'localhost' || h === '127.0.0.1') {
+    // Dev: NestJS lokal
     return window.location.protocol + '//' + h + ':3002/api/v1';
   }
-  // Produksi: isi dengan URL API yang sudah di-deploy
-  // Contoh: return 'https://api.domainanda.com/api/v1';
-  return window.location.protocol + '//' + h + ':3002/api/v1';
+  // Produksi: Cloudflare Pages Function (same-origin, tidak perlu CORS)
+  return window.location.origin + '/api/v1';
 }());
 
 /* ─── CEK TOKEN — jika sudah login, ubah tombol ke Dashboard ── */
@@ -1323,14 +1323,7 @@ async function apiFetch(path, body) {
   // Deteksi dini: jika API_URL masih menunjuk ke port 3002 pada domain
   // yang bukan localhost, itu berarti server lokal belum dikonfigurasi
   // untuk production dan koneksi pasti gagal — tampilkan error segera.
-  const isLocalhost = ['localhost','127.0.0.1'].includes(window.location.hostname);
-  const apiIsLocalPort = API_URL.includes(':3002');
-  if (!isLocalhost && apiIsLocalPort) {
-    throw new Error(
-      'Server API belum dikonfigurasi untuk mode produksi. ' +
-      'Jalankan: npm run api:dev pada mesin lokal Anda.'
-    );
-  }
+  // Tidak perlu cek URL lagi — sudah same-origin di produksi
 
   const ctrl  = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 5000); // 5 detik timeout

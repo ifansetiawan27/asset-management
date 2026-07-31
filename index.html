@@ -1233,9 +1233,7 @@ const API_URL = (function () {
   if (h === 'localhost' || h === '127.0.0.1') {
     return window.location.protocol + '//' + h + ':3002/api/v1';
   }
-  // Produksi: isi dengan URL API yang sudah di-deploy
-  // Contoh: return 'https://api.domainanda.com/api/v1';
-  return window.location.protocol + '//' + h + ':3002/api/v1';
+  return window.location.origin + '/api/v1';
 }());
 
 /* ─── CEK TOKEN — jika sudah login, ubah tombol ke Dashboard ── */
@@ -1339,11 +1337,7 @@ document.addEventListener('keydown', e => {
 
 /* ─── HELPER FETCH (timeout 5 detik + deteksi URL invalid) ─ */
 async function apiFetch(path, body) {
-  const isLocalhost = ['localhost','127.0.0.1'].includes(window.location.hostname);
-  const apiIsLocalPort = API_URL.includes(':3002');
-  if (!isLocalhost && apiIsLocalPort) {
-    throw new Error('Server API belum dikonfigurasi untuk produksi. Jalankan: npm run api:dev');
-  }
+  // Tidak perlu cek URL — sudah same-origin di produksi
   const ctrl  = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 5000);
   try {
