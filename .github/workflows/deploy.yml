@@ -1,0 +1,59 @@
+name: Deploy → GitHub + Cloudflare Pages
+
+# ─────────────────────────────────────────────────────────────
+# Trigger: setiap push ke branch main
+# ─────────────────────────────────────────────────────────────
+on:
+  push:
+    branches: [main]
+
+# Izin minimal yang dibutuhkan
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy:
+    name: Build & Deploy ke Cloudflare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      # 1. Checkout kode
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Setup Node.js 20 (LTS) dengan cache npm
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # 3. Install semua dependencies (monorepo)
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      # 4. Build Next.js (static export ke apps/web/out)
+      - name: Build Next.js (static export)
+        run: npm run web:build
+        env:
+          NODE_ENV: production
+
+      # 5. Deploy ke Cloudflare Pages via Wrangler
+      - name: Deploy ke Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/web
+          command: pages deploy out --project-name=asset-management --branch=main --commit-dirty=true
+
+      # 6. Konfirmasi deployment
+      - name: Summary
+        if: success()
+        run: |
+          echo "✅ Deployment berhasil!"
+          echo "🌐 URL: https://asset-management-9fk.pages.dev"
+          echo "📦 Branch: main"
+          echo "⏰ Waktu: $(date '+%Y-%m-%d %H:%M:%S UTC')"
