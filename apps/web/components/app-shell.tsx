@@ -8,15 +8,12 @@ import { Icon, IconName } from './icons';
 import { cn } from './ui';
 import { apiGet, apiPost } from '@/lib/api';
 import { getUser, logout, SessionUser } from '@/lib/auth';
-import { formatDateTime } from '@/lib/format';
-import { NAV, NavItem } from '@/lib/nav';
+import { NAV } from '@/lib/nav';
 import { AppNotification } from '@/lib/types';
 
 /* ════════════════════════════════════════════════════════════
-   NOTIFICATION BELL PANEL
+   NOTIFICATION PANEL
 ════════════════════════════════════════════════════════════ */
-
-/** Icon + warna per tipe notifikasi */
 function notifStyle(type: string): { bg: string; text: string; icon: IconName } {
   const t = type?.toUpperCase() ?? '';
   if (t.includes('MAINTENANCE') || t.includes('DUE'))
@@ -34,8 +31,8 @@ function notifStyle(type: string): { bg: string; text: string; icon: IconName } 
 
 function timeAgo(iso: string): string {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (diff < 60)  return 'Baru saja';
-  if (diff < 3600) return `${Math.floor(diff / 60)} menit lalu`;
+  if (diff < 60)    return 'Baru saja';
+  if (diff < 3600)  return `${Math.floor(diff / 60)} menit lalu`;
   if (diff < 86400) return `${Math.floor(diff / 3600)} jam lalu`;
   return `${Math.floor(diff / 86400)} hari lalu`;
 }
@@ -47,13 +44,12 @@ function NotificationPanel({
   anchorRef: React.RefObject<HTMLButtonElement | null>;
   onClose: () => void;
 }) {
-  const panelRef                = useRef<HTMLDivElement>(null);
-  const [items, setItems]       = useState<AppNotification[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState<string | null>(null);
-  const [marking, setMarking]   = useState(false);
+  const panelRef              = useRef<HTMLDivElement>(null);
+  const [items, setItems]     = useState<AppNotification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState<string | null>(null);
+  const [marking, setMarking] = useState(false);
 
-  /* Load notifications */
   useEffect(() => {
     setLoading(true);
     apiGet<AppNotification[]>('/notifications')
@@ -62,16 +58,13 @@ function NotificationPanel({
       .finally(() => setLoading(false));
   }, []);
 
-  /* Click-outside to close */
   useEffect(() => {
     function handle(e: MouseEvent) {
       if (
         panelRef.current &&
         !panelRef.current.contains(e.target as Node) &&
         !anchorRef.current?.contains(e.target as Node)
-      ) {
-        onClose();
-      }
+      ) onClose();
     }
     document.addEventListener('mousedown', handle);
     return () => document.removeEventListener('mousedown', handle);
@@ -82,9 +75,8 @@ function NotificationPanel({
   async function markAllRead() {
     setMarking(true);
     try {
-      const unreadItems = items.filter((n) => !n.read);
       await Promise.all(
-        unreadItems.map((n) =>
+        items.filter((n) => !n.read).map((n) =>
           apiPost(`/notifications/${n.id}/read`, {}).catch(() => null),
         ),
       );
@@ -100,7 +92,6 @@ function NotificationPanel({
       className="absolute right-0 top-12 z-50 w-80 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl sm:w-96"
       style={{ maxHeight: 'calc(100vh - 80px)' }}
     >
-      {/* Header */}
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-bold text-slate-800">Log Aktivitas</h3>
@@ -131,7 +122,6 @@ function NotificationPanel({
         </div>
       </div>
 
-      {/* Body */}
       <div className="overflow-y-auto" style={{ maxHeight: '420px' }}>
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-500">
@@ -163,12 +153,9 @@ function NotificationPanel({
                     !n.read && 'bg-blue-50/40 hover:bg-blue-50/60',
                   )}
                 >
-                  {/* Type icon */}
                   <div className={cn('mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full', s.bg, s.text)}>
                     <Icon name={s.icon} width={15} height={15} />
                   </div>
-
-                  {/* Content */}
                   <div className="min-w-0 flex-1">
                     <p className={cn('text-xs leading-snug', n.read ? 'text-slate-600' : 'font-medium text-slate-800')}>
                       {n.message}
@@ -182,11 +169,7 @@ function NotificationPanel({
                       )}
                     </div>
                   </div>
-
-                  {/* Unread dot */}
-                  {!n.read && (
-                    <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-brand-600" />
-                  )}
+                  {!n.read && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-brand-600" />}
                 </li>
               );
             })}
@@ -194,12 +177,9 @@ function NotificationPanel({
         )}
       </div>
 
-      {/* Footer */}
       {items.length > 0 && (
         <div className="border-t border-slate-100 px-4 py-2.5 text-center">
-          <p className="text-[11px] text-slate-400">
-            Menampilkan {items.length} aktivitas terakhir
-          </p>
+          <p className="text-[11px] text-slate-400">Menampilkan {items.length} aktivitas terakhir</p>
         </div>
       )}
     </div>
@@ -207,146 +187,50 @@ function NotificationPanel({
 }
 
 /* ════════════════════════════════════════════════════════════
-   SIDEBAR NAV ITEMS (accordion)
+   NAV LINK  (plain — tanpa accordion)
 ════════════════════════════════════════════════════════════ */
-
-function NavSection({
-  item,
-  pathname,
-  onNavClick,
+function NavLink({
+  href,
+  label,
+  icon,
+  active,
+  collapsed,
+  onClick,
 }: {
-  item: NavItem;
-  pathname: string;
-  onNavClick?: () => void;
+  href: string;
+  label: string;
+  icon: IconName;
+  active: boolean;
+  collapsed: boolean;
+  onClick?: () => void;
 }) {
-  const isParentActive =
-    item.href === '/'
-      ? pathname === '/'
-      : pathname.startsWith(item.href);
-
-  /* Auto-expand when a child is active */
-  const [open, setOpen] = useState(isParentActive);
-
-  /* Keep expanded when navigating within the section */
-  useEffect(() => {
-    if (isParentActive) setOpen(true);
-  }, [isParentActive]);
-
-  /* ── No children: plain link ───────────────────────── */
-  if (!item.children?.length) {
-    return (
-      <Link
-        href={item.href}
-        onClick={onNavClick}
-        className={cn(
-          'group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
-          isParentActive
-            ? 'bg-brand-600 text-white shadow-sm shadow-brand-900/30'
-            : 'text-slate-400 hover:bg-sidebar-surface hover:text-slate-100',
-        )}
-      >
-        {isParentActive && (
-          <span className="absolute -left-3 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r bg-white/60" />
-        )}
-        <Icon
-          name={item.icon}
-          width={17}
-          height={17}
-          className={cn(
-            'shrink-0 transition-colors',
-            isParentActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-300',
-          )}
-        />
-        <span className="truncate leading-none">{item.label}</span>
-      </Link>
-    );
-  }
-
-  /* ── Has children: accordion toggle ───────────────── */
-  const isChildActive = item.children.some((c) =>
-    c.href === pathname || (c.href !== item.href && pathname.startsWith(c.href)),
-  );
-  const parentHighlighted = isParentActive && !isChildActive;
-
   return (
-    <div>
-      {/* Parent toggle button */}
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className={cn(
-          'group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
-          parentHighlighted
-            ? 'bg-brand-600 text-white shadow-sm shadow-brand-900/30'
-            : isParentActive
-            ? 'bg-sidebar-surface text-slate-200'
-            : 'text-slate-400 hover:bg-sidebar-surface hover:text-slate-100',
-        )}
-      >
-        {parentHighlighted && (
-          <span className="absolute -left-3 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r bg-white/60" />
-        )}
-        <Icon
-          name={item.icon}
-          width={17}
-          height={17}
-          className={cn(
-            'shrink-0 transition-colors',
-            parentHighlighted ? 'text-white' : isParentActive ? 'text-slate-300' : 'text-slate-500 group-hover:text-slate-300',
-          )}
-        />
-        <span className="flex-1 truncate text-left leading-none">{item.label}</span>
-        {/* Chevron */}
-        <svg
-          viewBox="0 0 24 24"
-          width="14"
-          height="14"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          className={cn(
-            'shrink-0 transition-transform duration-200',
-            open ? 'rotate-180 text-slate-300' : 'text-slate-600',
-          )}
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-      </button>
-
-      {/* Children */}
-      {open && (
-        <ul className="mt-0.5 space-y-0.5 pl-3">
-          {item.children.map((child) => {
-            const isActive =
-              child.href === pathname ||
-              (child.href !== item.href && pathname.startsWith(child.href));
-            return (
-              <li key={child.href}>
-                <Link
-                  href={child.href}
-                  onClick={onNavClick}
-                  className={cn(
-                    'flex items-center gap-2.5 rounded-lg py-2 pl-6 pr-3 text-[13px] font-medium transition-all duration-100',
-                    isActive
-                      ? 'bg-brand-600/90 text-white'
-                      : 'text-slate-500 hover:bg-sidebar-surface hover:text-slate-200',
-                  )}
-                >
-                  {/* Small dot indicator */}
-                  <span
-                    className={cn(
-                      'h-1.5 w-1.5 shrink-0 rounded-full transition-colors',
-                      isActive ? 'bg-white' : 'bg-slate-600',
-                    )}
-                  />
-                  {child.label}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+    <Link
+      href={href}
+      onClick={onClick}
+      title={collapsed ? label : undefined}
+      className={cn(
+        'group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
+        collapsed ? 'justify-center px-2' : '',
+        active
+          ? 'bg-brand-600 text-white shadow-sm shadow-brand-900/30'
+          : 'text-slate-400 hover:bg-sidebar-surface hover:text-slate-100',
       )}
-    </div>
+    >
+      {active && !collapsed && (
+        <span className="absolute -left-3 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r bg-white/60" />
+      )}
+      <Icon
+        name={icon}
+        width={17}
+        height={17}
+        className={cn(
+          'shrink-0 transition-colors',
+          active ? 'text-white' : 'text-slate-500 group-hover:text-slate-300',
+        )}
+      />
+      {!collapsed && <span className="truncate leading-none">{label}</span>}
+    </Link>
   );
 }
 
@@ -354,89 +238,171 @@ function NavSection({
    APP SHELL
 ════════════════════════════════════════════════════════════ */
 export function AppShell({ children }: { children: ReactNode }) {
-  const pathname  = usePathname();
+  const pathname = usePathname();
+  const isActive = (href: string) =>
+    href === '/' ? pathname === '/' : pathname.startsWith(href);
 
-  const [user, setUser]       = useState<SessionUser | null>(null);
+  const [user, setUser]         = useState<SessionUser | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   const bellRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    setUser(getUser());
-  }, []);
+  useEffect(() => { setUser(getUser()); }, []);
 
-  const displayName  = user?.username ?? user?.email ?? 'User';
-  const displayRole  = user?.roles?.[0] ?? '—';
-  const initials     = displayName
+  const displayName = user?.username ?? user?.email ?? 'User';
+  const displayRole = user?.roles?.[0] ?? '—';
+  const initials    = displayName
     .split(/[\s@._-]+/)
     .filter(Boolean)
     .slice(0, 2)
     .map((s) => s[0]?.toUpperCase())
     .join('');
 
-  /* Shared sidebar content */
-  const SidebarBody = ({ onNavClick }: { onNavClick?: () => void }) => (
+  /* ── Sidebar content (shared desktop + mobile drawer) ── */
+  const SidebarBody = ({
+    isCollapsed = false,
+    onNavClick,
+  }: {
+    isCollapsed?: boolean;
+    onNavClick?: () => void;
+  }) => (
     <>
-      {/* ── Logo ───────────────────────────────────────── */}
-      <div className="flex h-16 shrink-0 items-center gap-3 border-b border-sidebar-border px-4">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-sm font-black text-white shadow-lg shadow-brand-900/40 ring-1 ring-white/10">
-          A
+      {/* ── Logo + collapse toggle ─────────────────────── */}
+      <div
+        className={cn(
+          'flex h-16 shrink-0 items-center border-b border-sidebar-border px-3',
+          isCollapsed ? 'justify-center' : 'justify-between px-4',
+        )}
+      >
+        {/* Brand */}
+        <div className={cn('flex items-center gap-3', isCollapsed && 'justify-center')}>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-sm font-black text-white shadow-lg shadow-brand-900/40 ring-1 ring-white/10">
+            A
+          </div>
+          {!isCollapsed && (
+            <div className="leading-snug">
+              <p className="text-sm font-bold tracking-tight text-white">AMS</p>
+              <p className="text-[10px] text-slate-500">Asset Management</p>
+            </div>
+          )}
         </div>
-        <div className="leading-snug">
-          <p className="text-sm font-bold tracking-tight text-white">AMS</p>
-          <p className="text-[10px] text-slate-500">Asset Management</p>
-        </div>
+
+        {/* Collapse toggle — hanya desktop */}
+        {!onNavClick && (
+          <button
+            onClick={() => setCollapsed((v) => !v)}
+            title={isCollapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}
+            className={cn(
+              'flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition hover:bg-sidebar-surface hover:text-slate-200',
+              isCollapsed && 'mt-0',
+            )}
+          >
+            {/* Double arrow left / right */}
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              {isCollapsed ? (
+                /* arrow right (expand) */
+                <>
+                  <path d="M5 12h14" />
+                  <path d="m12 5 7 7-7 7" />
+                </>
+              ) : (
+                /* arrow left (collapse) */
+                <>
+                  <path d="M19 12H5" />
+                  <path d="m12 19-7-7 7-7" />
+                </>
+              )}
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* ── Navigation ─────────────────────────────────── */}
-      <nav className="sidebar-scroll flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
-        <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
-          Menu Utama
-        </p>
+      <nav
+        className={cn(
+          'sidebar-scroll flex-1 space-y-0.5 overflow-y-auto py-3',
+          isCollapsed ? 'px-2' : 'px-3',
+        )}
+      >
+        {!isCollapsed && (
+          <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
+            Menu Utama
+          </p>
+        )}
+
         {NAV.slice(0, 7).map((item) => (
-          <NavSection
+          <NavLink
             key={item.href}
-            item={item}
-            pathname={pathname}
-            onNavClick={onNavClick}
+            href={item.href}
+            label={item.label}
+            icon={item.icon}
+            active={isActive(item.href)}
+            collapsed={isCollapsed}
+            onClick={onNavClick}
           />
         ))}
 
         <div className="my-2 border-t border-sidebar-border" />
-        <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
-          Konfigurasi
-        </p>
+
+        {!isCollapsed && (
+          <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
+            Konfigurasi
+          </p>
+        )}
+
         {NAV.slice(7).map((item) => (
-          <NavSection
+          <NavLink
             key={item.href}
-            item={item}
-            pathname={pathname}
-            onNavClick={onNavClick}
+            href={item.href}
+            label={item.label}
+            icon={item.icon}
+            active={isActive(item.href)}
+            collapsed={isCollapsed}
+            onClick={onNavClick}
           />
         ))}
       </nav>
 
       {/* ── User footer ─────────────────────────────────── */}
       <div className="shrink-0 border-t border-sidebar-border p-3">
-        <div className="flex items-center gap-3 rounded-lg px-2 py-1.5">
+        <div
+          className={cn(
+            'flex items-center rounded-lg px-2 py-1.5',
+            isCollapsed ? 'justify-center' : 'gap-3',
+          )}
+        >
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white ring-2 ring-sidebar-muted">
             {initials || 'U'}
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-semibold text-slate-200">{displayName}</p>
-            <p className="truncate text-[10px] text-slate-500">{displayRole}</p>
-          </div>
-          <button
-            onClick={() => logout()}
-            title="Keluar"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-500 transition hover:bg-sidebar-surface hover:text-red-400"
-          >
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <path d="m16 17 5-5-5-5M21 12H9" />
-            </svg>
-          </button>
+          {!isCollapsed && (
+            <>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-semibold text-slate-200">{displayName}</p>
+                <p className="truncate text-[10px] text-slate-500">{displayRole}</p>
+              </div>
+              <button
+                onClick={() => logout()}
+                title="Keluar"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-500 transition hover:bg-sidebar-surface hover:text-red-400"
+              >
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <path d="m16 17 5-5-5-5M21 12H9" />
+                </svg>
+              </button>
+            </>
+          )}
         </div>
       </div>
     </>
@@ -446,8 +412,13 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen bg-slate-50">
 
       {/* ── Desktop sidebar ───────────────────────────── */}
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-sidebar shadow-sidebar md:flex">
-        <SidebarBody />
+      <aside
+        className={cn(
+          'sticky top-0 hidden h-screen shrink-0 flex-col bg-sidebar shadow-sidebar transition-all duration-300 md:flex',
+          collapsed ? 'w-16' : 'w-60',
+        )}
+      >
+        <SidebarBody isCollapsed={collapsed} />
       </aside>
 
       {/* ── Main column ───────────────────────────────── */}
@@ -483,7 +454,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {/* Right actions */}
           <div className="ml-auto flex items-center gap-2">
 
-            {/* ── Notification bell (with panel) ─────── */}
+            {/* Bell → Log Aktivitas */}
             <div className="relative">
               <button
                 ref={bellRef}
@@ -497,20 +468,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                 )}
               >
                 <Icon name="bell" width={17} height={17} />
-                {/* Unread dot */}
                 <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-brand-600 ring-2 ring-white" />
               </button>
-
-              {/* Dropdown panel */}
               {bellOpen && (
-                <NotificationPanel
-                  anchorRef={bellRef}
-                  onClose={() => setBellOpen(false)}
-                />
+                <NotificationPanel anchorRef={bellRef} onClose={() => setBellOpen(false)} />
               )}
             </div>
 
-            {/* Add asset CTA */}
+            {/* Add asset */}
             <Link
               href="/assets/new"
               className="flex h-9 items-center gap-2 rounded-lg bg-brand-600 px-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 active:scale-95"
@@ -556,7 +521,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <path d="M18 6 6 18M6 6l12 12" />
               </svg>
             </button>
-            <SidebarBody onNavClick={() => setMenuOpen(false)} />
+            <SidebarBody isCollapsed={false} onNavClick={() => setMenuOpen(false)} />
           </aside>
         </div>
 
