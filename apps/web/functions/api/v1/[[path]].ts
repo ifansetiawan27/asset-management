@@ -95,6 +95,24 @@ function paginatedResp(data: unknown[], total: number, page: number, limit: numb
   return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } };
 }
 
+/* ── snake_case → camelCase converter ────────────────────── */
+function toCamel(s: string): string {
+  return s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+}
+function mapToCamel(obj: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    out[toCamel(k)] = v;
+  }
+  return out;
+}
+/** Konversi array atau single object dari Supabase (snake_case) ke camelCase. */
+function camelize(data: unknown): unknown {
+  if (Array.isArray(data)) return data.map(r => mapToCamel(r as Record<string, unknown>));
+  if (data && typeof data === 'object') return mapToCamel(data as Record<string, unknown>);
+  return data;
+}
+
 /* ── Temp password generator ──────────────────────────────── */
 function genTempPass(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#$!';
@@ -345,12 +363,13 @@ async function handleAssets(req: Request, url: URL, env: Env): Promise<Response>
       .order('created_at', { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
 
-    if (q)      query = query.ilike('name', `%${q}%`);
+    if (q)      query = query.or(`name.ilike.%${q}%,asset_code.ilike.%${q}%,serial_number.ilike.%${q}%`);
     if (status) query = query.eq('status', status);
 
     const { data, count, error } = await query;
     if (error) return errResp(error.message, 500, req);
-    return jsonResp(paginatedResp(data ?? [], count ?? 0, page, limit), 200, req);
+    // Konversi snake_case → camelCase agar kompatibel dengan frontend TypeScript types
+    return jsonResp(paginatedResp(camelize(data ?? []) as unknown[], count ?? 0, page, limit), 200, req);
   }
 
   if (req.method === 'POST') {
@@ -365,10 +384,10 @@ async function handleAssets(req: Request, url: URL, env: Env): Promise<Response>
     if (data?.asset_code) {
       const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=000000&bgcolor=ffffff&data=${encodeURIComponent('AMS:' + data.asset_code)}&format=png`;
       await client.from('asset').update({ qr_url: qrUrl }).eq('id', data.id);
-      data.qrUrl = qrUrl;
+      data.qr_url = qrUrl;
     }
 
-    return jsonResp(data, 201, req);
+    return jsonResp(camelize(data), 201, req);
   }
 
   return errResp('Method not allowed', 405, req);
@@ -381,7 +400,7 @@ async function handleAssetById(req: Request, id: string, env: Env): Promise<Resp
   if (req.method === 'GET') {
     const { data, error } = await client.from('asset').select('*').eq('id', id).eq('tenant_id', tid).single();
     if (error || !data) return errResp('Aset tidak ditemukan.', 404, req);
-    return jsonResp(data, 200, req);
+    return jsonResp(camelize(data), 200, req);
   }
 
   if (req.method === 'PATCH') {
@@ -389,7 +408,7 @@ async function handleAssetById(req: Request, id: string, env: Env): Promise<Resp
     const { data, error } = await client.from('asset').update({ ...body, updated_at: new Date().toISOString() })
       .eq('id', id).eq('tenant_id', tid).select().single();
     if (error) return errResp(error.message, 500, req);
-    return jsonResp(data, 200, req);
+    return jsonResp(camelize(data), 200, req);
   }
 
   if (req.method === 'DELETE') {
@@ -577,7 +596,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (sub === 'documents' && method === 'GET') {
         const { data } = await client.from('asset_document')
           .select('*').eq('asset_id', assetId).order('created_at', { ascending: false });
-        return jsonResp(data ?? [], 200, request);
+        return jsonResp(camelize(data ?? []), 200, request);
       }
 
       /* POST /assets/:id/documents */
@@ -593,28 +612,28 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       if (sub === 'history' && method === 'GET') {
         const { data } = await client.from('asset_history')
           .select('*').eq('asset_id', assetId).order('occurred_at', { ascending: false });
-        return jsonResp(data ?? [], 200, request);
+        return jsonResp(camelize(data ?? []), 200, request);
       }
 
       /* GET /assets/:id/depreciation */
       if (sub === 'depreciation' && method === 'GET') {
         const { data } = await client.from('depreciation_entry')
           .select('*').eq('asset_id', assetId).order('period_year', { ascending: false });
-        return jsonResp(data ?? [], 200, request);
+        return jsonResp(camelize(data ?? []), 200, request);
       }
 
       /* GET /assets/:id/maintenance-history */
       if (sub === 'maintenance-history' && method === 'GET') {
         const { data } = await client.from('maintenance_history')
           .select('*').eq('asset_id', assetId).order('performed_at', { ascending: false });
-        return jsonResp(data ?? [], 200, request);
+        return jsonResp(camelize(data ?? []), 200, request);
       }
 
       /* GET /assets/:id/handovers */
       if (sub === 'handovers' && method === 'GET') {
         const { data } = await client.from('handover')
           .select('*').eq('asset_id', assetId).order('created_at', { ascending: false });
-        return jsonResp(data ?? [], 200, request);
+        return jsonResp(camelize(data ?? []), 200, request);
       }
 
       /* POST /assets/:id/label  — Generate & simpan QR Code URL */
