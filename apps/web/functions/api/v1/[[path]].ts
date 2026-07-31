@@ -95,6 +95,34 @@ function paginatedResp(data: unknown[], total: number, page: number, limit: numb
   return { data, meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } };
 }
 
+/* ── Activity Log helper ──────────────────────────────────── */
+/**
+ * Catat aktivitas ke tabel notification (channel=IN_APP).
+ * Dipanggil setelah setiap aksi penting agar Log Aktivitas terisi.
+ */
+async function createActivity(
+  client: SupabaseClient,
+  tenantId: string,
+  userId: string | null,
+  type: string,
+  message: string,
+  entityType?: string,
+  entityId?: string,
+): Promise<void> {
+  try {
+    await client.from('notification').insert({
+      tenant_id:     tenantId,
+      user_id:       userId,
+      channel:       'IN_APP',
+      template_code: type,
+      subject:       type,
+      body:          message,
+      payload:       { entityType: entityType ?? null, entityId: entityId ?? null },
+      status:        'PENDING',
+    });
+  } catch { /* jangan lempar error agar aksi utama tidak terganggu */ }
+}
+
 /* ── snake_case → camelCase converter ────────────────────── */
 function toCamel(s: string): string {
   return s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
@@ -170,6 +198,10 @@ async function handleLogin(req: Request, env: Env): Promise<Response> {
     env.JWT_SECRET,
   );
 
+  // Catat aktivitas login
+  await createActivity(client, tenantId, user.id, 'LOGIN',
+    `${user.email} berhasil masuk ke sistem`);
+
   return jsonResp({
     accessToken: token,
     user: { id: user.id, email: user.email, username: user.full_name, roles },
@@ -233,6 +265,10 @@ async function handleRegister(req: Request, env: Env): Promise<Response> {
     { sub: uid, email: email.trim().toLowerCase(), roles: [roleCode], tenantId },
     env.JWT_SECRET,
   );
+
+  // Catat aktivitas registrasi
+  await createActivity(client, tenantId, uid, 'REGISTER',
+    `Akun baru ${email.trim().toLowerCase()} terdaftar sebagai ${roleCode}`);
 
   return jsonResp({
     accessToken: token,
@@ -387,6 +423,12 @@ async function handleAssets(req: Request, url: URL, env: Env): Promise<Response>
       data.qr_url = qrUrl;
     }
 
+    // Catat aktivitas pembuatan aset
+    const actorId = (await verifyToken(req, env.JWT_SECRET))?.sub as string | null;
+    await createActivity(client, tid, actorId, 'ASSET_CREATED',
+      `Aset baru ditambahkan: ${(data as Record<string,unknown>)?.name ?? ''} (${(data as Record<string,unknown>)?.asset_code ?? ''})`,
+      'asset', data?.id);
+
     return jsonResp(camelize(data), 201, req);
   }
 
@@ -408,12 +450,20 @@ async function handleAssetById(req: Request, id: string, env: Env): Promise<Resp
     const { data, error } = await client.from('asset').update({ ...body, updated_at: new Date().toISOString() })
       .eq('id', id).eq('tenant_id', tid).select().single();
     if (error) return errResp(error.message, 500, req);
+    const patchActor = (await verifyToken(req, env.JWT_SECRET))?.sub as string | null;
+    await createActivity(client, tid, patchActor, 'ASSET_UPDATED',
+      `Aset diperbarui: ${(data as Record<string,unknown>)?.name ?? id}`, 'asset', id);
     return jsonResp(camelize(data), 200, req);
   }
 
   if (req.method === 'DELETE') {
+    const { data: delData } = await client.from('asset').select('name,asset_code').eq('id', id).eq('tenant_id', tid).single();
     const { error } = await client.from('asset').delete().eq('id', id).eq('tenant_id', tid);
     if (error) return errResp(error.message, 500, req);
+    const delActor = (await verifyToken(req, env.JWT_SECRET))?.sub as string | null;
+    await createActivity(client, tid, delActor, 'ASSET_DELETED',
+      `Aset dihapus: ${(delData as Record<string,string>|null)?.name ?? id} (${(delData as Record<string,string>|null)?.asset_code ?? ''})`,
+      'asset', id);
     return new Response(null, { status: 204, headers: cors(req) });
   }
 
@@ -502,6 +552,10 @@ async function handleUsers(req: Request, url: URL, env: Env): Promise<Response> 
 
     await client.from('app_user').insert({ id: uid, tenant_id: tid, email: email.toLowerCase(), full_name: fullName, password_hash: hash, status: 'active' });
     await client.from('user_roles').insert({ user_id: uid, role_id: role.id });
+
+    const inviteActor = (await verifyToken(req, env.JWT_SECRET))?.sub as string | null;
+    await createActivity(client, tid, inviteActor, 'USER_INVITED',
+      `Pengguna baru diundang: ${email.toLowerCase()} sebagai ${roleCode}`, 'user', uid);
 
     const { data } = await client.from('app_user').select(`id, email, full_name, status, created_at, user_roles ( role:role_id ( code, name ) )`).eq('id', uid).single();
     return jsonResp(data, 201, req);
@@ -705,12 +759,39 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       return jsonResp(data, 200, request);
     }
 
-    /* Notifications */
-    if (path === '/notifications' && method === 'GET') return handleTable('notification', request, url, env);
+    /* Notifications — mapping DB (body/channel/status) → frontend (message/type/read) */
+    if (path === '/notifications' && method === 'GET') {
+      const tid = env.AUTH_DEFAULT_TENANT_ID ?? DEFAULT_TENANT;
+      const { data } = await sb(env).from('notification')
+        .select('id, channel, template_code, subject, body, payload, status, created_at, user_id')
+        .eq('tenant_id', tid)
+        .eq('channel', 'IN_APP')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      const mapped = (data ?? []).map((n: Record<string, unknown>) => ({
+        id:         n.id,
+        type:       n.template_code ?? n.channel ?? 'INFO',
+        message:    n.body ?? n.subject ?? '',
+        entityType: (n.payload as Record<string,unknown>)?.entityType ?? null,
+        entityId:   (n.payload as Record<string,unknown>)?.entityId   ?? null,
+        read:       n.status === 'READ',
+        createdAt:  n.created_at,
+      }));
+
+      return jsonResp(mapped, 200, request);
+    }
     const notifMatch = path.match(/^\/notifications\/([^/]+)\/read$/);
     if (notifMatch) {
-      await sb(env).from('notification').update({ read: true }).eq('id', notifMatch[1]);
+      await sb(env).from('notification').update({ status: 'READ' }).eq('id', notifMatch[1]);
       return jsonResp({ message: 'Ditandai dibaca.' }, 200, request);
+    }
+    // Mark all read
+    if (path === '/notifications/read-all' && method === 'POST') {
+      const tid = env.AUTH_DEFAULT_TENANT_ID ?? DEFAULT_TENANT;
+      await sb(env).from('notification').update({ status: 'READ' })
+        .eq('tenant_id', tid).eq('channel', 'IN_APP').eq('status', 'PENDING');
+      return jsonResp({ message: 'Semua ditandai dibaca.' }, 200, request);
     }
 
     /* Reports — format { type, count, rows } sesuai ReportResponse di frontend */
