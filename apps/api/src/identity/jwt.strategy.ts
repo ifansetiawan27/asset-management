@@ -7,10 +7,17 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { tenantStorage } from '../shared/tenant/tenant-context';
 import { AuthUser } from './auth-user.interface';
 
-/** Klaim token JWT lokal (diterbitkan AuthService). */
+/** Klaim token JWT lokal (diterbitkan AuthService).
+ *  Format AMS: { sub, email, roles[], tenantId }
+ *  Format Keycloak (legacy, untuk kompatibilitas): { realm_access.roles, tenant_id }
+ */
 interface LocalJwtPayload {
   sub: string;
   email?: string;
+  // AMS format
+  roles?: string[];
+  tenantId?: string;
+  // Keycloak / legacy format (fallback)
   preferred_username?: string;
   name?: string;
   tenant_id?: string;
@@ -34,8 +41,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   validate(req: Request, payload: LocalJwtPayload): AuthUser {
-    const roles = payload.realm_access?.roles ?? [];
-    const tenantId = payload.tenant_id ?? null;
+    // AMS JWT: 'roles' langsung; fallback ke format Keycloak untuk kompatibilitas
+    const roles    = payload.roles ?? payload.realm_access?.roles ?? [];
+    // AMS JWT: 'tenantId' camelCase; fallback ke 'tenant_id' snake_case
+    const tenantId = payload.tenantId ?? payload.tenant_id ?? null;
 
     // Cegah spoofing lintas tenant: header (jika ada) harus cocok klaim token.
     const headerRaw = req.headers['x-tenant-id'];
@@ -53,7 +62,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return {
       sub: payload.sub,
       email: payload.email ?? null,
-      username: payload.preferred_username ?? null,
+      username: payload.preferred_username ?? payload.email ?? null,
       tenantId,
       roles,
     };
