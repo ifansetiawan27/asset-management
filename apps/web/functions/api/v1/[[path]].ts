@@ -847,8 +847,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       const aid    = parts[2];
       const action = parts[3];
       const newStatus = action === 'approve' ? 'APPROVED' : 'REJECTED';
+      // Update hanya kolom status (tabel approval_request tidak memiliki updated_at)
       const { data, error } = await sb(env).from('approval_request')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .update({ status: newStatus })
         .eq('id', aid).eq('tenant_id', env.AUTH_DEFAULT_TENANT_ID ?? DEFAULT_TENANT)
         .select().single();
       if (error || !data) return errResp(error?.message ?? 'Approval tidak ditemukan.', error ? 500 : 404, request);
