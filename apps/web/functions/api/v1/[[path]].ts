@@ -360,6 +360,14 @@ async function handleAssets(req: Request, url: URL, env: Env): Promise<Response>
       .select()
       .single();
     if (error) return errResp(error.message, 500, req);
+
+    // Auto-generate QR URL setelah aset dibuat
+    if (data?.asset_code) {
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=000000&bgcolor=ffffff&data=${encodeURIComponent('AMS:' + data.asset_code)}&format=png`;
+      await client.from('asset').update({ qr_url: qrUrl }).eq('id', data.id);
+      data.qrUrl = qrUrl;
+    }
+
     return jsonResp(data, 201, req);
   }
 
@@ -557,6 +565,85 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
     /* Assets */
     if (path === '/assets')             return handleAssets(request, url, env);
+
+    /* ── Asset sub-routes (harus SEBELUM match /assets/:id) ── */
+    const assetSub = path.match(/^\/assets\/([^/]+)\/([^/]+)$/);
+    if (assetSub) {
+      const [, assetId, sub] = assetSub;
+      const client = sb(env);
+      const tid    = env.AUTH_DEFAULT_TENANT_ID ?? DEFAULT_TENANT;
+
+      /* GET /assets/:id/documents */
+      if (sub === 'documents' && method === 'GET') {
+        const { data } = await client.from('asset_document')
+          .select('*').eq('asset_id', assetId).order('created_at', { ascending: false });
+        return jsonResp(data ?? [], 200, request);
+      }
+
+      /* POST /assets/:id/documents */
+      if (sub === 'documents' && method === 'POST') {
+        const body = await request.json() as Record<string, unknown>;
+        const { data, error } = await client.from('asset_document')
+          .insert({ ...body, asset_id: assetId, tenant_id: tid }).select().single();
+        if (error) return errResp(error.message, 500, request);
+        return jsonResp(data, 201, request);
+      }
+
+      /* GET /assets/:id/history */
+      if (sub === 'history' && method === 'GET') {
+        const { data } = await client.from('asset_history')
+          .select('*').eq('asset_id', assetId).order('occurred_at', { ascending: false });
+        return jsonResp(data ?? [], 200, request);
+      }
+
+      /* GET /assets/:id/depreciation */
+      if (sub === 'depreciation' && method === 'GET') {
+        const { data } = await client.from('depreciation_entry')
+          .select('*').eq('asset_id', assetId).order('period_year', { ascending: false });
+        return jsonResp(data ?? [], 200, request);
+      }
+
+      /* GET /assets/:id/maintenance-history */
+      if (sub === 'maintenance-history' && method === 'GET') {
+        const { data } = await client.from('maintenance_history')
+          .select('*').eq('asset_id', assetId).order('performed_at', { ascending: false });
+        return jsonResp(data ?? [], 200, request);
+      }
+
+      /* GET /assets/:id/handovers */
+      if (sub === 'handovers' && method === 'GET') {
+        const { data } = await client.from('handover')
+          .select('*').eq('asset_id', assetId).order('created_at', { ascending: false });
+        return jsonResp(data ?? [], 200, request);
+      }
+
+      /* POST /assets/:id/label  — Generate & simpan QR Code URL */
+      if (sub === 'label' && method === 'POST') {
+        const { data: asset } = await client.from('asset')
+          .select('id, asset_code').eq('id', assetId).eq('tenant_id', tid).single();
+        if (!asset) return errResp('Aset tidak ditemukan.', 404, request);
+
+        const assetCode = asset.asset_code ?? assetId;
+        // Gunakan qrserver.com (gratis, tidak perlu library)
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&color=000000&bgcolor=ffffff&data=${encodeURIComponent('AMS:' + assetCode)}&format=png`;
+
+        // Simpan qr_url ke database
+        await client.from('asset').update({ qr_url: qrUrl, updated_at: new Date().toISOString() })
+          .eq('id', assetId).eq('tenant_id', tid);
+
+        return jsonResp({ id: assetId, assetCode, qrUrl }, 200, request);
+      }
+
+      /* GET /assets/:id/label (ambil QR yang sudah ada) */
+      if (sub === 'label' && method === 'GET') {
+        const { data: asset } = await client.from('asset')
+          .select('id, asset_code, qr_url').eq('id', assetId).eq('tenant_id', tid).single();
+        if (!asset) return errResp('Aset tidak ditemukan.', 404, request);
+        return jsonResp(asset, 200, request);
+      }
+    }
+
+    /* /assets/:id — GET, PATCH, DELETE */
     const assetMatch = path.match(/^\/assets\/([^/]+)$/);
     if (assetMatch) return handleAssetById(request, assetMatch[1], env);
 
