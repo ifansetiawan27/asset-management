@@ -151,3 +151,14 @@ export interface UsageSummary {
   assets: { used: number; quota: number | null };
   users: { used: number; seats: number | null };
 }
+
+export interface AppNotification {
+  id: string;
+  /** Tipe notifikasi: REMINDER, MAINTENANCE_DUE, ALERT, INFO, dll. */
+  type: string;
+  message: string;
+  entityType?: string | null;
+  entityId?: string | null;
+  read: boolean;
+  createdAt: string;
+}

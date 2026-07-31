@@ -2,64 +2,365 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 
 import { Icon, IconName } from './icons';
 import { cn } from './ui';
+import { apiGet, apiPost } from '@/lib/api';
 import { getUser, logout, SessionUser } from '@/lib/auth';
-import { NAV } from '@/lib/nav';
+import { formatDateTime } from '@/lib/format';
+import { NAV, NavItem } from '@/lib/nav';
+import { AppNotification } from '@/lib/types';
 
-/* ── Nav item ───────────────────────────────────────────── */
-function NavLink({
-  href,
-  label,
-  icon,
-  active,
-  onClick,
+/* ════════════════════════════════════════════════════════════
+   NOTIFICATION BELL PANEL
+════════════════════════════════════════════════════════════ */
+
+/** Icon + warna per tipe notifikasi */
+function notifStyle(type: string): { bg: string; text: string; icon: IconName } {
+  const t = type?.toUpperCase() ?? '';
+  if (t.includes('MAINTENANCE') || t.includes('DUE'))
+    return { bg: 'bg-amber-50', text: 'text-amber-600', icon: 'wrench' };
+  if (t.includes('ALERT') || t.includes('MISSING') || t.includes('DAMAGED') || t.includes('OVERDUE'))
+    return { bg: 'bg-red-50', text: 'text-red-600', icon: 'shield' };
+  if (t.includes('APPROVED') || t.includes('COMPLETED'))
+    return { bg: 'bg-emerald-50', text: 'text-emerald-600', icon: 'check' };
+  if (t.includes('AUDIT'))
+    return { bg: 'bg-violet-50', text: 'text-violet-600', icon: 'clipboard' };
+  if (t.includes('DISPOSAL'))
+    return { bg: 'bg-red-50', text: 'text-red-600', icon: 'trash' };
+  return { bg: 'bg-blue-50', text: 'text-blue-600', icon: 'bell' };
+}
+
+function timeAgo(iso: string): string {
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60)  return 'Baru saja';
+  if (diff < 3600) return `${Math.floor(diff / 60)} menit lalu`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} jam lalu`;
+  return `${Math.floor(diff / 86400)} hari lalu`;
+}
+
+function NotificationPanel({
+  anchorRef,
+  onClose,
 }: {
-  href: string;
-  label: string;
-  icon: IconName;
-  active: boolean;
-  onClick?: () => void;
+  anchorRef: React.RefObject<HTMLButtonElement | null>;
+  onClose: () => void;
 }) {
+  const panelRef                = useRef<HTMLDivElement>(null);
+  const [items, setItems]       = useState<AppNotification[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState<string | null>(null);
+  const [marking, setMarking]   = useState(false);
+
+  /* Load notifications */
+  useEffect(() => {
+    setLoading(true);
+    apiGet<AppNotification[]>('/notifications')
+      .then(setItems)
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  /* Click-outside to close */
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (
+        panelRef.current &&
+        !panelRef.current.contains(e.target as Node) &&
+        !anchorRef.current?.contains(e.target as Node)
+      ) {
+        onClose();
+      }
+    }
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [anchorRef, onClose]);
+
+  const unread = items.filter((n) => !n.read).length;
+
+  async function markAllRead() {
+    setMarking(true);
+    try {
+      const unreadItems = items.filter((n) => !n.read);
+      await Promise.all(
+        unreadItems.map((n) =>
+          apiPost(`/notifications/${n.id}/read`, {}).catch(() => null),
+        ),
+      );
+      setItems((prev) => prev.map((n) => ({ ...n, read: true })));
+    } finally {
+      setMarking(false);
+    }
+  }
+
   return (
-    <Link
-      href={href}
-      onClick={onClick}
-      className={cn(
-        'group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
-        active
-          ? 'bg-brand-600 text-white shadow-sm shadow-brand-900/30'
-          : 'text-slate-400 hover:bg-sidebar-surface hover:text-slate-100',
-      )}
+    <div
+      ref={panelRef}
+      className="absolute right-0 top-12 z-50 w-80 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl sm:w-96"
+      style={{ maxHeight: 'calc(100vh - 80px)' }}
     >
-      {/* Active left accent bar */}
-      {active && (
-        <span className="absolute -left-3 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r bg-white/60" />
-      )}
-      <Icon
-        name={icon}
-        width={17}
-        height={17}
-        className={cn(
-          'shrink-0 transition-colors',
-          active ? 'text-white' : 'text-slate-500 group-hover:text-slate-300',
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-bold text-slate-800">Log Aktivitas</h3>
+          {unread > 0 && (
+            <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-brand-600 px-1.5 text-[10px] font-bold text-white">
+              {unread > 99 ? '99+' : unread}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {unread > 0 && (
+            <button
+              onClick={markAllRead}
+              disabled={marking}
+              className="text-[11px] font-medium text-brand-600 transition hover:text-brand-700 disabled:opacity-50"
+            >
+              {marking ? 'Memproses...' : 'Tandai semua dibaca'}
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="overflow-y-auto" style={{ maxHeight: '420px' }}>
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-500">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-brand-600" />
+            Memuat...
+          </div>
+        ) : error ? (
+          <div className="px-4 py-6 text-center">
+            <p className="text-sm text-slate-500">Gagal memuat notifikasi</p>
+            <p className="mt-1 text-xs text-slate-400">{error}</p>
+          </div>
+        ) : items.length === 0 ? (
+          <div className="flex flex-col items-center justify-center px-4 py-10 text-center">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+              <Icon name="bell" width={22} height={22} />
+            </div>
+            <p className="text-sm font-medium text-slate-600">Tidak ada notifikasi</p>
+            <p className="mt-1 text-xs text-slate-400">Aktivitas terbaru akan muncul di sini.</p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-slate-50">
+            {items.map((n) => {
+              const s = notifStyle(n.type);
+              return (
+                <li
+                  key={n.id}
+                  className={cn(
+                    'flex items-start gap-3 px-4 py-3 transition hover:bg-slate-50',
+                    !n.read && 'bg-blue-50/40 hover:bg-blue-50/60',
+                  )}
+                >
+                  {/* Type icon */}
+                  <div className={cn('mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full', s.bg, s.text)}>
+                    <Icon name={s.icon} width={15} height={15} />
+                  </div>
+
+                  {/* Content */}
+                  <div className="min-w-0 flex-1">
+                    <p className={cn('text-xs leading-snug', n.read ? 'text-slate-600' : 'font-medium text-slate-800')}>
+                      {n.message}
+                    </p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className="text-[10px] text-slate-400">{timeAgo(n.createdAt)}</span>
+                      {n.type && (
+                        <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-slate-500">
+                          {n.type.replace(/_/g, ' ')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Unread dot */}
+                  {!n.read && (
+                    <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-brand-600" />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         )}
-      />
-      <span className="truncate leading-none">{label}</span>
-    </Link>
+      </div>
+
+      {/* Footer */}
+      {items.length > 0 && (
+        <div className="border-t border-slate-100 px-4 py-2.5 text-center">
+          <p className="text-[11px] text-slate-400">
+            Menampilkan {items.length} aktivitas terakhir
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 
-/* ── AppShell ────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════
+   SIDEBAR NAV ITEMS (accordion)
+════════════════════════════════════════════════════════════ */
+
+function NavSection({
+  item,
+  pathname,
+  onNavClick,
+}: {
+  item: NavItem;
+  pathname: string;
+  onNavClick?: () => void;
+}) {
+  const isParentActive =
+    item.href === '/'
+      ? pathname === '/'
+      : pathname.startsWith(item.href);
+
+  /* Auto-expand when a child is active */
+  const [open, setOpen] = useState(isParentActive);
+
+  /* Keep expanded when navigating within the section */
+  useEffect(() => {
+    if (isParentActive) setOpen(true);
+  }, [isParentActive]);
+
+  /* ── No children: plain link ───────────────────────── */
+  if (!item.children?.length) {
+    return (
+      <Link
+        href={item.href}
+        onClick={onNavClick}
+        className={cn(
+          'group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
+          isParentActive
+            ? 'bg-brand-600 text-white shadow-sm shadow-brand-900/30'
+            : 'text-slate-400 hover:bg-sidebar-surface hover:text-slate-100',
+        )}
+      >
+        {isParentActive && (
+          <span className="absolute -left-3 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r bg-white/60" />
+        )}
+        <Icon
+          name={item.icon}
+          width={17}
+          height={17}
+          className={cn(
+            'shrink-0 transition-colors',
+            isParentActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-300',
+          )}
+        />
+        <span className="truncate leading-none">{item.label}</span>
+      </Link>
+    );
+  }
+
+  /* ── Has children: accordion toggle ───────────────── */
+  const isChildActive = item.children.some((c) =>
+    c.href === pathname || (c.href !== item.href && pathname.startsWith(c.href)),
+  );
+  const parentHighlighted = isParentActive && !isChildActive;
+
+  return (
+    <div>
+      {/* Parent toggle button */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          'group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
+          parentHighlighted
+            ? 'bg-brand-600 text-white shadow-sm shadow-brand-900/30'
+            : isParentActive
+            ? 'bg-sidebar-surface text-slate-200'
+            : 'text-slate-400 hover:bg-sidebar-surface hover:text-slate-100',
+        )}
+      >
+        {parentHighlighted && (
+          <span className="absolute -left-3 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r bg-white/60" />
+        )}
+        <Icon
+          name={item.icon}
+          width={17}
+          height={17}
+          className={cn(
+            'shrink-0 transition-colors',
+            parentHighlighted ? 'text-white' : isParentActive ? 'text-slate-300' : 'text-slate-500 group-hover:text-slate-300',
+          )}
+        />
+        <span className="flex-1 truncate text-left leading-none">{item.label}</span>
+        {/* Chevron */}
+        <svg
+          viewBox="0 0 24 24"
+          width="14"
+          height="14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          className={cn(
+            'shrink-0 transition-transform duration-200',
+            open ? 'rotate-180 text-slate-300' : 'text-slate-600',
+          )}
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+
+      {/* Children */}
+      {open && (
+        <ul className="mt-0.5 space-y-0.5 pl-3">
+          {item.children.map((child) => {
+            const isActive =
+              child.href === pathname ||
+              (child.href !== item.href && pathname.startsWith(child.href));
+            return (
+              <li key={child.href}>
+                <Link
+                  href={child.href}
+                  onClick={onNavClick}
+                  className={cn(
+                    'flex items-center gap-2.5 rounded-lg py-2 pl-6 pr-3 text-[13px] font-medium transition-all duration-100',
+                    isActive
+                      ? 'bg-brand-600/90 text-white'
+                      : 'text-slate-500 hover:bg-sidebar-surface hover:text-slate-200',
+                  )}
+                >
+                  {/* Small dot indicator */}
+                  <span
+                    className={cn(
+                      'h-1.5 w-1.5 shrink-0 rounded-full transition-colors',
+                      isActive ? 'bg-white' : 'bg-slate-600',
+                    )}
+                  />
+                  {child.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════
+   APP SHELL
+════════════════════════════════════════════════════════════ */
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname  = usePathname();
-  const isActive  = (href: string) =>
-    href === '/' ? pathname === '/' : pathname.startsWith(href);
 
   const [user, setUser]       = useState<SessionUser | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [bellOpen, setBellOpen] = useState(false);
+
+  const bellRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setUser(getUser());
@@ -74,10 +375,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     .map((s) => s[0]?.toUpperCase())
     .join('');
 
-  /* Shared sidebar content (desktop + mobile drawer) */
+  /* Shared sidebar content */
   const SidebarBody = ({ onNavClick }: { onNavClick?: () => void }) => (
     <>
-      {/* ── Logo / Brand ────────────────────────────────── */}
+      {/* ── Logo ───────────────────────────────────────── */}
       <div className="flex h-16 shrink-0 items-center gap-3 border-b border-sidebar-border px-4">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-sm font-black text-white shadow-lg shadow-brand-900/40 ring-1 ring-white/10">
           A
@@ -88,21 +389,17 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      {/* ── Navigation ──────────────────────────────────── */}
+      {/* ── Navigation ─────────────────────────────────── */}
       <nav className="sidebar-scroll flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
-        {/* Nav group label */}
         <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
           Menu Utama
         </p>
-
         {NAV.slice(0, 7).map((item) => (
-          <NavLink
+          <NavSection
             key={item.href}
-            href={item.href}
-            label={item.label}
-            icon={item.icon}
-            active={isActive(item.href)}
-            onClick={onNavClick}
+            item={item}
+            pathname={pathname}
+            onNavClick={onNavClick}
           />
         ))}
 
@@ -110,15 +407,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
           Konfigurasi
         </p>
-
         {NAV.slice(7).map((item) => (
-          <NavLink
+          <NavSection
             key={item.href}
-            href={item.href}
-            label={item.label}
-            icon={item.icon}
-            active={isActive(item.href)}
-            onClick={onNavClick}
+            item={item}
+            pathname={pathname}
+            onNavClick={onNavClick}
           />
         ))}
       </nav>
@@ -138,7 +432,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             title="Keluar"
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-500 transition hover:bg-sidebar-surface hover:text-red-400"
           >
-            {/* Logout icon */}
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
               <path d="m16 17 5-5-5-5M21 12H9" />
@@ -190,14 +483,32 @@ export function AppShell({ children }: { children: ReactNode }) {
           {/* Right actions */}
           <div className="ml-auto flex items-center gap-2">
 
-            {/* Notification bell */}
-            <button
-              title="Notifikasi"
-              className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
-            >
-              <Icon name="bell" width={17} height={17} />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-brand-600 ring-2 ring-white" />
-            </button>
+            {/* ── Notification bell (with panel) ─────── */}
+            <div className="relative">
+              <button
+                ref={bellRef}
+                title="Log Aktivitas"
+                onClick={() => setBellOpen((v) => !v)}
+                className={cn(
+                  'relative flex h-9 w-9 items-center justify-center rounded-lg border transition',
+                  bellOpen
+                    ? 'border-brand-300 bg-brand-50 text-brand-600'
+                    : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700',
+                )}
+              >
+                <Icon name="bell" width={17} height={17} />
+                {/* Unread dot */}
+                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-brand-600 ring-2 ring-white" />
+              </button>
+
+              {/* Dropdown panel */}
+              {bellOpen && (
+                <NotificationPanel
+                  anchorRef={bellRef}
+                  onClose={() => setBellOpen(false)}
+                />
+              )}
+            </div>
 
             {/* Add asset CTA */}
             <Link
@@ -223,7 +534,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         {/* ── Mobile drawer ────────────────────────────── */}
         <div className={cn('fixed inset-0 z-40 md:hidden', menuOpen ? '' : 'pointer-events-none')}>
-          {/* Backdrop */}
           <div
             onClick={() => setMenuOpen(false)}
             className={cn(
@@ -231,7 +541,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               menuOpen ? 'opacity-100' : 'opacity-0',
             )}
           />
-          {/* Drawer */}
           <aside
             className={cn(
               'absolute left-0 top-0 flex h-full w-64 flex-col bg-sidebar shadow-2xl transition-transform duration-300',
