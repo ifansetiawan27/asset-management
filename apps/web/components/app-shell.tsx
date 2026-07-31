@@ -252,7 +252,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => { setUser(getUser()); }, []);
 
   const displayName = user?.username ?? user?.email ?? 'User';
-  const displayRole = user?.roles?.[0] ?? '—';
+  // Format role: "SUPER_ADMIN" → "Super Admin", "EMPLOYEE" → "Employee", dst.
+  const roleRaw     = user?.roles?.[0] ?? '';
+  const displayRole = roleRaw
+    ? roleRaw.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
+    : '—';
   const initials    = displayName
     .split(/[\s@._-]+/)
     .filter(Boolean)

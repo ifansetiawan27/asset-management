@@ -34,9 +34,12 @@ function decode(token: string): SessionUser | null {
     return {
       sub: payload.sub,
       email: payload.email ?? null,
-      username: payload.preferred_username ?? null,
-      tenantId: payload.tenant_id ?? null,
-      roles: payload.realm_access?.roles ?? [],
+      // AMS JWT: tidak ada 'preferred_username' — gunakan email atau username
+      username: payload.username ?? payload.preferred_username ?? payload.email ?? null,
+      // AMS JWT: camelCase 'tenantId', bukan 'tenant_id'
+      tenantId: payload.tenantId ?? payload.tenant_id ?? null,
+      // AMS JWT: array langsung 'roles', bukan nested di 'realm_access'
+      roles: payload.roles ?? payload.realm_access?.roles ?? [],
     };
   } catch {
     return null;
