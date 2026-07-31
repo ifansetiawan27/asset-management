@@ -2,6 +2,7 @@ name: Deploy → GitHub + Cloudflare Pages
 
 # ─────────────────────────────────────────────────────────────
 # Trigger: setiap push ke branch main
+# Last updated: 2026-07-31 12:40:40
 # ─────────────────────────────────────────────────────────────
 on:
   push:
