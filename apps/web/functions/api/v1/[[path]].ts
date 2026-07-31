@@ -141,6 +141,22 @@ function camelize(data: unknown): unknown {
   return data;
 }
 
+/* ── camelCase → snake_case (untuk INSERT / UPDATE ke Supabase) ── */
+function toSnakeKey(s: string): string {
+  return s.replace(/([A-Z])/g, '_$1').toLowerCase();
+}
+/**
+ * Konversi body dari frontend (camelCase) ke snake_case sebelum
+ * dikirim ke Supabase. Hanya field yang ada (skip undefined/null yang kosong).
+ */
+function snakeBody(body: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(body)) {
+    if (v !== undefined) out[toSnakeKey(k)] = v;
+  }
+  return out;
+}
+
 /* ── Temp password generator ──────────────────────────────── */
 function genTempPass(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#$!';
@@ -409,9 +425,52 @@ async function handleAssets(req: Request, url: URL, env: Env): Promise<Response>
   }
 
   if (req.method === 'POST') {
-    const body = await req.json() as Record<string, unknown>;
+    const rawBody = await req.json() as Record<string, unknown>;
+    // Konversi camelCase → snake_case agar cocok dengan kolom Supabase
+    const body = snakeBody(rawBody);
+
+    /* ── Generate asset_code ─────────────────────────────── */
+    // 1. Ambil slug tenant untuk prefix kode
+    const { data: tenantRow } = await client.from('tenant')
+      .select('slug').eq('id', tid).single();
+    const prefix = ((tenantRow as Record<string,string>|null)?.slug ?? 'AMS').toUpperCase().slice(0, 6);
+
+    // 2. Ambil kode kategori — jika tidak dipilih, gunakan kategori pertama (GEN)
+    let categoryCode = 'GEN';
+    // Gunakan array query (lebih aman dari .single() yang throw saat 0/N row)
+    const { data: allCats } = await client.from('asset_category')
+      .select('id, code').eq('tenant_id', tid)
+      .order('created_at', { ascending: true });
+    const catList = (allCats ?? []) as Array<{id: string; code: string}>;
+
+    let finalCategoryId: string | null = (body.category_id as string | null | undefined) ?? null;
+
+    if (finalCategoryId) {
+      // Pastikan category_id valid & ambil kodenya
+      const found = catList.find(c => c.id === finalCategoryId);
+      if (found) categoryCode = found.code.toUpperCase();
+    } else {
+      // Pakai kategori pertama sebagai default
+      const def = catList[0];
+      if (def) {
+        finalCategoryId = def.id;
+        categoryCode    = def.code.toUpperCase();
+      }
+    }
+
+    // 3. Increment sequence via PG function (atomic)
+    const year = new Date().getFullYear();
+    const { data: seqResult, error: seqErr } = await client.rpc('next_asset_seq', {
+      p_tenant: tid,
+      p_year:   year,
+    });
+    if (seqErr) return errResp('Gagal generate kode aset: ' + seqErr.message, 500, req);
+    const seq      = Number(seqResult);
+    const assetCode = `${prefix}-${categoryCode}-${year}-${String(seq).padStart(5, '0')}`;
+
+    /* ── Insert ──────────────────────────────────────────── */
     const { data, error } = await client.from('asset')
-      .insert({ ...body, tenant_id: tid, status: body.status ?? 'DRAFT' })
+      .insert({ ...body, tenant_id: tid, asset_code: assetCode, category_id: finalCategoryId, status: body.status ?? 'ACTIVE' })
       .select()
       .single();
     if (error) return errResp(error.message, 500, req);
@@ -426,8 +485,8 @@ async function handleAssets(req: Request, url: URL, env: Env): Promise<Response>
     // Catat aktivitas pembuatan aset
     const actorId = (await verifyToken(req, env.JWT_SECRET))?.sub as string | null;
     await createActivity(client, tid, actorId, 'ASSET_CREATED',
-      `Aset baru ditambahkan: ${(data as Record<string,unknown>)?.name ?? ''} (${(data as Record<string,unknown>)?.asset_code ?? ''})`,
-      'asset', data?.id);
+      `Aset baru ditambahkan: ${(data as Record<string,unknown>)?.name ?? ''} (${assetCode})`,
+      'asset', (data as Record<string,unknown>)?.id as string);
 
     return jsonResp(camelize(data), 201, req);
   }
@@ -446,7 +505,8 @@ async function handleAssetById(req: Request, id: string, env: Env): Promise<Resp
   }
 
   if (req.method === 'PATCH') {
-    const body = await req.json() as Record<string, unknown>;
+    const rawPatch = await req.json() as Record<string, unknown>;
+    const body = snakeBody(rawPatch);
     const { data, error } = await client.from('asset').update({ ...body, updated_at: new Date().toISOString() })
       .eq('id', id).eq('tenant_id', tid).select().single();
     if (error) return errResp(error.message, 500, req);
@@ -501,10 +561,11 @@ async function handleTable(
   }
 
   if (req.method === 'POST') {
-    const body = await req.json() as Record<string, unknown>;
+    const rawBody = await req.json() as Record<string, unknown>;
+    const body = snakeBody(rawBody);
     const { data, error } = await client.from(table).insert({ ...body, tenant_id: tid }).select().single();
     if (error) return errResp(error.message, 500, req);
-    return jsonResp(data, 201, req);
+    return jsonResp(camelize(data), 201, req);
   }
 
   return errResp('Method not allowed', 405, req);
