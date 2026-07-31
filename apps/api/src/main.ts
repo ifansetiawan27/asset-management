@@ -3,6 +3,7 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { DataSource } from 'typeorm';
 
 import { AppModule } from './app.module';
 
@@ -46,6 +47,20 @@ async function bootstrap(): Promise<void> {
   await app.listen(port);
   Logger.log(`AMS API berjalan di http://localhost:${port}/api/v1`, 'Bootstrap');
   Logger.log(`Swagger UI: http://localhost:${port}/docs`, 'Bootstrap');
+
+  // Warm-up pool koneksi DB agar request login pertama langsung cepat.
+  // Query ringan (SELECT 1) ini memaksa TypeORM membuka koneksi ke Supabase
+  // saat startup sehingga pool sudah siap sebelum user login.
+  setImmediate(async () => {
+    try {
+      const ds = app.get(DataSource);
+      await ds.query('SELECT 1');
+      Logger.log('DB pool warm-up selesai ✓', 'Bootstrap');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      Logger.warn(`DB pool warm-up gagal: ${msg}`, 'Bootstrap');
+    }
+  });
 }
 
 void bootstrap();

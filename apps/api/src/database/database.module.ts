@@ -48,6 +48,17 @@ import { NotificationTemplate } from '../notification/entities/notification-temp
         database: config.get<string>('database.name'),
         // TLS untuk DB terkelola (mis. Supabase). Aktifkan dengan DB_SSL=true.
         ssl: buildDbSsl(),
+        // Pool koneksi — menjaga koneksi tetap hangat agar request pertama cepat.
+        poolSize: 5,
+        extra: {
+          // Kirim paket keepalive agar koneksi tidak di-drop saat idle.
+          keepAlive: true,
+          keepAliveInitialDelayMillis: 10_000,
+          // Koneksi maks menunggu slot di pool sebelum error.
+          connectionTimeoutMillis: 8_000,
+          // Tutup koneksi idle setelah 5 menit agar pool tidak membusuk.
+          idleTimeoutMillis: 300_000,
+        },
         entities: [
           Tenant,
           User,

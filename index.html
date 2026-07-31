@@ -1337,6 +1337,35 @@ document.addEventListener('keydown', e => {
   });
 });
 
+/* ─── HELPER FETCH (timeout 5 detik + deteksi URL invalid) ─ */
+async function apiFetch(path, body) {
+  const isLocalhost = ['localhost','127.0.0.1'].includes(window.location.hostname);
+  const apiIsLocalPort = API_URL.includes(':3002');
+  if (!isLocalhost && apiIsLocalPort) {
+    throw new Error('Server API belum dikonfigurasi untuk produksi. Jalankan: npm run api:dev');
+  }
+  const ctrl  = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 5000);
+  try {
+    const res = await fetch(API_URL + path, {
+      method: 'POST',
+      mode: 'cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    return res;
+  } catch (err) {
+    clearTimeout(timer);
+    if (err.name === 'AbortError')
+      throw new Error('Server tidak merespons (>5 detik). Pastikan API sudah berjalan.');
+    if (err.message === 'Failed to fetch')
+      throw new Error('Tidak dapat terhubung ke server. Jalankan: npm run api:dev');
+    throw err;
+  }
+}
+
 /* ─── FORM LOGIN ─────────────────────────────────────────── */
 document.getElementById('form-login').addEventListener('submit', async e => {
   e.preventDefault();
@@ -1348,11 +1377,7 @@ document.getElementById('form-login').addEventListener('submit', async e => {
 
   setBusy('login', true);
   try {
-    const res  = await fetch(API_URL + '/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+    const res  = await apiFetch('/auth/login', { email, password });
     const data = await res.json();
     if (!res.ok) {
       const msg = Array.isArray(data.message) ? data.message.join(', ') : (data.message || 'Login gagal.');
@@ -1385,11 +1410,7 @@ document.getElementById('form-reg').addEventListener('submit', async e => {
 
   setBusy('reg', true);
   try {
-    const res  = await fetch(API_URL + '/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fullName, email, password }),
-    });
+    const res  = await apiFetch('/auth/register', { fullName, email, password });
     const data = await res.json();
     if (!res.ok) {
       const msg = Array.isArray(data.message) ? data.message.join(', ') : (data.message || 'Pendaftaran gagal.');
@@ -1415,11 +1436,7 @@ document.getElementById('form-forgot').addEventListener('submit', async e => {
 
   setBusy('forgot', true);
   try {
-    const res  = await fetch(API_URL + '/auth/forgot-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
+    const res  = await apiFetch('/auth/forgot-password', { email });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Gagal mengirim email.');
     showOk('✅ ' + data.message);
