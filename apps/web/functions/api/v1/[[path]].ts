@@ -923,8 +923,55 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     /* Audit */
     if (path === '/audit/sessions') return handleTable('audit_session', request, url, env);
 
-    /* Disposal */
+    /* ── Disposal ─────────────────────────────────────────────── */
+    /* GET list + POST create */
     if (path === '/disposals') return handleTable('disposal_request', request, url, env);
+
+    /* POST /disposals/:id/finalize — tandai DISPOSED, update status aset */
+    const disposalAction = path.match(/^\/disposals\/([^/]+)\/(finalize|archive)$/);
+    if (disposalAction) {
+      const [, did, action] = disposalAction;
+      const tid = env.AUTH_DEFAULT_TENANT_ID ?? DEFAULT_TENANT;
+      const client = sb(env);
+
+      // Ambil data disposal + asset_id
+      const { data: disposal, error: dispErr } = await client
+        .from('disposal_request')
+        .select('id, asset_id, status')
+        .eq('id', did).eq('tenant_id', tid).single();
+
+      if (dispErr || !disposal) return errResp('Disposal tidak ditemukan.', 404, request);
+
+      if (action === 'finalize') {
+        // Ubah status disposal → DISPOSED
+        const { error: updErr } = await client.from('disposal_request')
+          .update({ status: 'DISPOSED' })
+          .eq('id', did).eq('tenant_id', tid);
+        if (updErr) return errResp(updErr.message, 500, request);
+
+        // Ubah status aset → DISPOSED
+        if ((disposal as Record<string,string>).asset_id) {
+          await client.from('asset')
+            .update({ status: 'DISPOSED', updated_at: new Date().toISOString() })
+            .eq('id', (disposal as Record<string,string>).asset_id).eq('tenant_id', tid);
+        }
+
+        // Catat aktivitas
+        const actor = (await verifyToken(request, env.JWT_SECRET))?.sub as string | null;
+        await createActivity(client, tid, actor, 'DISPOSAL_FINALIZED',
+          `Disposal difinalisasi — aset ditandai DISPOSED`, 'disposal_request', did);
+
+      } else if (action === 'archive') {
+        const { error: arcErr } = await client.from('disposal_request')
+          .update({ status: 'ARCHIVED' })
+          .eq('id', did).eq('tenant_id', tid);
+        if (arcErr) return errResp(arcErr.message, 500, request);
+      }
+
+      const { data: updated } = await client.from('disposal_request')
+        .select('*').eq('id', did).single();
+      return jsonResp(camelize(updated ?? {}), 200, request);
+    }
 
     /* Approvals */
     /* Inbox hanya tampilkan yang BELUM diproses (PENDING / REQUESTED) */
