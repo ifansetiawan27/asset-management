@@ -28,7 +28,17 @@ function buildHeaders(json = true): HeadersInit {
   const headers: Record<string, string> = {};
   if (json) headers['Content-Type'] = 'application/json';
   const token = getToken();
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+    // Ekstrak tenantId dari JWT payload dan kirim sebagai X-Tenant-ID
+    // agar TenantMiddleware NestJS dapat mengidentifikasi tenant.
+    try {
+      const b64 = token.split('.')[1];
+      const pad = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+      const pl  = JSON.parse(atob(pad.replace(/-/g, '+').replace(/_/g, '/')));
+      if (pl?.tenantId) headers['X-Tenant-ID'] = pl.tenantId;
+    } catch { /* abaikan jika token malformed */ }
+  }
   return headers;
 }
 
