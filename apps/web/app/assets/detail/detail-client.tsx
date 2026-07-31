@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Icon } from '@/components/icons';
@@ -18,7 +18,7 @@ import {
   StatusBadge,
   Tabs,
 } from '@/components/ui';
-import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/format';
 import { Asset, AssetDocument, Category, DepreciationEntry, HistoryItem } from '@/lib/types';
 
@@ -39,16 +39,19 @@ const TABS = [
 
 export function AssetDetailClient() {
   const searchParams = useSearchParams();
+  const router       = useRouter();
   const id = searchParams.get('id') ?? '';
-  const [asset, setAsset] = useState<Asset | null>(null);
+
+  const [asset, setAsset]       = useState<Asset | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [docs, setDocs] = useState<AssetDocument[]>([]);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [depr, setDepr] = useState<DepreciationEntry[]>([]);
-  const [maint, setMaint] = useState<MaintHistory[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState('ringkasan');
+  const [docs, setDocs]         = useState<AssetDocument[]>([]);
+  const [history, setHistory]   = useState<HistoryItem[]>([]);
+  const [depr, setDepr]         = useState<DepreciationEntry[]>([]);
+  const [maint, setMaint]       = useState<MaintHistory[]>([]);
+  const [error, setError]       = useState<string | null>(null);
+  const [busy, setBusy]         = useState(false);
+  const [tab, setTab]           = useState('ringkasan');
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const load = useCallback(() => {
     if (!id) return;
@@ -60,9 +63,7 @@ export function AssetDetailClient() {
     apiGet<MaintHistory[]>(`/assets/${id}/maintenance-history`).then(setMaint).catch(() => undefined);
   }, [id]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   const categoryName = useMemo(
     () => categories.find((c) => c.id === asset?.categoryId)?.name ?? '—',
@@ -71,34 +72,64 @@ export function AssetDetailClient() {
 
   async function activate() {
     setBusy(true);
-    try {
-      await apiPatch(`/assets/${id}`, { status: 'ACTIVE' });
-      load();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
+    try { await apiPatch(`/assets/${id}`, { status: 'ACTIVE' }); load(); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
   }
+
   async function regenerate() {
     setBusy(true);
+    try { await apiPost(`/assets/${id}/label`, {}); load(); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  async function handleDelete() {
+    setBusy(true);
+    setConfirmDelete(false);
     try {
-      await apiPost(`/assets/${id}/label`, {});
-      load();
+      await apiDelete(`/assets/${id}`);
+      router.push('/assets');
     } catch (e) {
       setError((e as Error).message);
-    } finally {
       setBusy(false);
     }
   }
 
-  if (!id) return <ErrorBox message="ID aset tidak ditemukan pada URL." />;
+  if (!id)             return <ErrorBox message="ID aset tidak ditemukan pada URL." />;
   if (error && !asset) return <ErrorBox message={error} />;
-  if (!asset) return <Spinner />;
+  if (!asset)          return <Spinner />;
 
   return (
     <div className="space-y-5">
-      {/* Header */}
+
+      {/* ── Dialog konfirmasi hapus ──────────────────────────── */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round">
+                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+            </div>
+            <h3 className="mb-1 text-base font-bold text-slate-900">Hapus Aset?</h3>
+            <p className="mb-1 text-sm text-slate-600">
+              Anda akan menghapus <strong>{asset.name}</strong> ({asset.assetCode}).
+            </p>
+            <p className="mb-5 text-xs text-red-600">Tindakan ini tidak dapat dibatalkan.</p>
+            <div className="flex gap-3">
+              <Button variant="secondary" className="flex-1" onClick={() => setConfirmDelete(false)} disabled={busy}>
+                Batal
+              </Button>
+              <Button variant="danger" className="flex-1" onClick={handleDelete} disabled={busy}>
+                {busy ? 'Menghapus...' : 'Ya, Hapus'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Header ──────────────────────────────────────────── */}
       <Card>
         <div className="flex flex-wrap items-center gap-4 p-5">
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-sm">
@@ -115,11 +146,16 @@ export function AssetDetailClient() {
             <InfoChip icon={<Icon name="pin" width={16} height={16} />} label="Lokasi" value={asset.locationId ? asset.locationId.slice(0, 8) : '—'} />
           </div>
           <div className="flex items-center gap-2">
-            {asset.status === 'DRAFT' ? (
-              <Button onClick={activate} disabled={busy}>
-                Aktifkan
-              </Button>
-            ) : null}
+            {asset.status === 'DRAFT' && (
+              <Button onClick={activate} disabled={busy}>Aktifkan</Button>
+            )}
+            {/* Tombol Hapus dengan konfirmasi */}
+            <Button variant="danger" onClick={() => setConfirmDelete(true)} disabled={busy}>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+              Hapus
+            </Button>
             <Link href="/assets">
               <Button variant="secondary">Kembali</Button>
             </Link>
@@ -132,14 +168,18 @@ export function AssetDetailClient() {
 
       {error ? <ErrorBox message={error} /> : null}
 
-      {/* RINGKASAN */}
-      {tab === 'ringkasan' ? (
+      {/* ── RINGKASAN ───────────────────────────────────────── */}
+      {tab === 'ringkasan' && (
         <>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <ConditionCard title={asset.status} subtitle="Status aset" tone={asset.status === 'ACTIVE' ? 'green' : asset.status === 'DISPOSED' ? 'red' : 'amber'} icon={<Icon name="check" />} />
+            <ConditionCard title={asset.status} subtitle="Status aset"
+              tone={asset.status === 'ACTIVE' ? 'green' : asset.status === 'DISPOSED' ? 'red' : 'amber'}
+              icon={<Icon name="check" />} />
             <ConditionCard title={formatCurrency(asset.bookValue, asset.currency)} subtitle="Nilai buku" tone="blue" icon={<Icon name="money" />} />
-            <ConditionCard title={asset.warrantyExpiry ? formatDate(asset.warrantyExpiry) : '—'} subtitle="Masa garansi" tone={asset.warrantyExpiry ? 'green' : 'slate'} icon={<Icon name="shield" />} />
-            <ConditionCard title={`${docs.length} Dokumen`} subtitle="Terlampir" tone={docs.length > 0 ? 'blue' : 'slate'} icon={<Icon name="doc" />} />
+            <ConditionCard title={asset.warrantyExpiry ? formatDate(asset.warrantyExpiry) : '—'} subtitle="Masa garansi"
+              tone={asset.warrantyExpiry ? 'green' : 'slate'} icon={<Icon name="shield" />} />
+            <ConditionCard title={`${docs.length} Dokumen`} subtitle="Terlampir"
+              tone={docs.length > 0 ? 'blue' : 'slate'} icon={<Icon name="doc" />} />
           </div>
 
           <div className="grid gap-5 lg:grid-cols-3">
@@ -148,12 +188,12 @@ export function AssetDetailClient() {
                 <CardHeader title="Informasi Aset" />
                 <CardBody>
                   <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-                    <KeyValue label="Brand" value={asset.brand ?? '—'} />
-                    <KeyValue label="Model" value={asset.model ?? '—'} />
+                    <KeyValue label="Brand"         value={asset.brand ?? '—'} />
+                    <KeyValue label="Model"         value={asset.model ?? '—'} />
                     <KeyValue label="Serial Number" value={asset.serialNumber ?? '—'} />
-                    <KeyValue label="Tipe" value={asset.assetType ?? '—'} />
-                    <KeyValue label="Kategori" value={categoryName} />
-                    <KeyValue label="Custodian" value={asset.custodianUserId ? asset.custodianUserId.slice(0, 8) : '—'} />
+                    <KeyValue label="Tipe"          value={asset.assetType ?? '—'} />
+                    <KeyValue label="Kategori"      value={categoryName} />
+                    <KeyValue label="Custodian"     value={asset.custodianUserId ? asset.custodianUserId.slice(0, 8) : '—'} />
                   </dl>
                 </CardBody>
               </Card>
@@ -161,12 +201,12 @@ export function AssetDetailClient() {
                 <CardHeader title="Finansial" />
                 <CardBody>
                   <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-                    <KeyValue label="Tanggal Beli" value={formatDate(asset.purchaseDate)} />
-                    <KeyValue label="Harga Perolehan" value={formatCurrency(asset.purchasePrice, asset.currency)} />
-                    <KeyValue label="Nilai Buku" value={formatCurrency(asset.bookValue, asset.currency)} />
-                    <KeyValue label="Umur Ekonomis" value={asset.usefulLifeYears ? `${asset.usefulLifeYears} tahun` : '—'} />
-                    <KeyValue label="Metode Penyusutan" value={asset.depreciationMethod ?? '—'} />
-                    <KeyValue label="Mata Uang" value={asset.currency} />
+                    <KeyValue label="Tanggal Beli"        value={formatDate(asset.purchaseDate)} />
+                    <KeyValue label="Harga Perolehan"     value={formatCurrency(asset.purchasePrice, asset.currency)} />
+                    <KeyValue label="Nilai Buku"          value={formatCurrency(asset.bookValue, asset.currency)} />
+                    <KeyValue label="Umur Ekonomis"       value={asset.usefulLifeYears ? `${asset.usefulLifeYears} tahun` : '—'} />
+                    <KeyValue label="Metode Penyusutan"   value={asset.depreciationMethod ?? '—'} />
+                    <KeyValue label="Mata Uang"           value={asset.currency} />
                   </dl>
                 </CardBody>
               </Card>
@@ -195,16 +235,16 @@ export function AssetDetailClient() {
                 <CardBody className="flex flex-wrap gap-2">
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{categoryName}</span>
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{asset.currency}</span>
-                  {asset.assetType ? <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{asset.assetType}</span> : null}
+                  {asset.assetType && <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{asset.assetType}</span>}
                 </CardBody>
               </Card>
             </div>
           </div>
         </>
-      ) : null}
+      )}
 
-      {/* RIWAYAT */}
-      {tab === 'riwayat' ? (
+      {/* ── RIWAYAT ─────────────────────────────────────────── */}
+      {tab === 'riwayat' && (
         <Card>
           <CardHeader title="Riwayat Aset" />
           <CardBody>
@@ -223,10 +263,10 @@ export function AssetDetailClient() {
             )}
           </CardBody>
         </Card>
-      ) : null}
+      )}
 
-      {/* DOKUMEN */}
-      {tab === 'dokumen' ? (
+      {/* ── DOKUMEN ─────────────────────────────────────────── */}
+      {tab === 'dokumen' && (
         <Card>
           <CardHeader title={`Dokumen (${docs.length})`} />
           <CardBody>
@@ -246,10 +286,10 @@ export function AssetDetailClient() {
             )}
           </CardBody>
         </Card>
-      ) : null}
+      )}
 
-      {/* PENYUSUTAN */}
-      {tab === 'penyusutan' ? (
+      {/* ── PENYUSUTAN ──────────────────────────────────────── */}
+      {tab === 'penyusutan' && (
         <Card>
           <CardHeader title="Entri Penyusutan" />
           <CardBody>
@@ -279,10 +319,10 @@ export function AssetDetailClient() {
             )}
           </CardBody>
         </Card>
-      ) : null}
+      )}
 
-      {/* MAINTENANCE */}
-      {tab === 'maintenance' ? (
+      {/* ── MAINTENANCE ─────────────────────────────────────── */}
+      {tab === 'maintenance' && (
         <Card>
           <CardHeader title="Riwayat Maintenance" />
           <CardBody>
@@ -310,7 +350,7 @@ export function AssetDetailClient() {
             )}
           </CardBody>
         </Card>
-      ) : null}
+      )}
     </div>
   );
 }
