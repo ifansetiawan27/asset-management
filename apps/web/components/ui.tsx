@@ -481,6 +481,63 @@ export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={cn(inputBase, props.className)} />;
 }
 
+/**
+ * CurrencyInput — input angka Rupiah dengan pemisah titik otomatis.
+ *
+ * - value   : string angka mentah tanpa titik, mis. "70000002"
+ * - onChange : dipanggil dengan string angka mentah, mis. "70000002"
+ * - Tampilan : "70.000.002" (format ID)
+ * - inputMode="numeric" agar keyboard angka muncul di HP
+ */
+export function CurrencyInput({
+  value,
+  onChange,
+  placeholder,
+  className,
+  ...props
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value' | 'type'> & {
+  value: string;
+  onChange: (rawValue: string) => void;
+  placeholder?: string;
+}) {
+  /** Tambahkan titik sebagai pemisah ribuan: "70000002" → "70.000.002" */
+  function toDisplay(raw: string): string {
+    const digits = raw.replace(/[^0-9]/g, '');
+    if (!digits) return '';
+    return parseInt(digits, 10).toLocaleString('id-ID');
+  }
+
+  /** Format placeholder juga jika berupa angka */
+  function fmtPlaceholder(p?: string): string | undefined {
+    if (!p) return p;
+    const num = parseInt(p.replace(/[^0-9]/g, ''), 10);
+    return isNaN(num) ? p : num.toLocaleString('id-ID');
+  }
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value.replace(/[^0-9]/g, '');
+    onChange(raw);
+  }
+
+  return (
+    <div className={cn('relative', className)}>
+      {/* Prefiks "Rp" */}
+      <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-xs font-semibold text-slate-400">
+        Rp
+      </span>
+      <input
+        {...props}
+        type="text"
+        inputMode="numeric"
+        value={toDisplay(value)}
+        onChange={handleChange}
+        placeholder={fmtPlaceholder(placeholder)}
+        className={cn(inputBase, 'pl-9 tabular-nums')}
+      />
+    </div>
+  );
+}
+
 export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...props} className={cn(inputBase, props.className)} />;
 }

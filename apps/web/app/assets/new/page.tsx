@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import { Button, Card, CardBody, CardHeader, ErrorBox, Field, Input, PageHeader, Select } from '@/components/ui';
+import { Button, Card, CardBody, CardHeader, CurrencyInput, ErrorBox, Field, Input, PageHeader, Select } from '@/components/ui';
 import { apiGet, apiPost } from '@/lib/api';
 import { Asset, Category, Vendor } from '@/lib/types';
 
@@ -112,7 +112,11 @@ export default function NewAssetPage() {
               <Input type="date" value={form.purchaseDate} onChange={set('purchaseDate')} />
             </Field>
             <Field label="Harga Beli (IDR)">
-              <Input type="number" min="0" value={form.purchasePrice} onChange={set('purchasePrice')} placeholder="15000000" />
+              <CurrencyInput
+                value={form.purchasePrice}
+                onChange={(raw) => setForm((f) => ({ ...f, purchasePrice: raw }))}
+                placeholder="15000000"
+              />
             </Field>
             <Field label="Umur Ekonomis (tahun)">
               <Input type="number" min="0" value={form.usefulLifeYears} onChange={set('usefulLifeYears')} placeholder="4" />
