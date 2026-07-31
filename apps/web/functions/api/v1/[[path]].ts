@@ -158,6 +158,28 @@ function snakeBody(body: Record<string, unknown>): Record<string, unknown> {
   return out;
 }
 
+/* ── Maintenance schedule: hitung next_due_date ─────────── */
+function shiftMonths(dateStr: string, months: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+function shiftDays(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+function computeNextDue(current: string, frequency: string, intervalDays: number | null): string {
+  switch (frequency) {
+    case 'MONTHLY':   return shiftMonths(current, 1);
+    case 'QUARTERLY': return shiftMonths(current, 3);
+    case 'SEMESTER':  return shiftMonths(current, 6);
+    case 'ANNUAL':    return shiftMonths(current, 12);
+    case 'CUSTOM':    return shiftDays(current, intervalDays ?? 30);
+    default:          return shiftMonths(current, 1);
+  }
+}
+
 /* ── Temp password generator ──────────────────────────────── */
 function genTempPass(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#$!';
@@ -810,8 +832,81 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     const userDelMatch = path.match(/^\/users\/([^/]+)$/);
     if (userDelMatch) return handleUserById(request, userDelMatch[1], env);
 
-    /* Maintenance */
+    /* ── Maintenance ─────────────────────────────────────────── */
     if (path === '/maintenance/tickets') return handleTable('maintenance_ticket', request, url, env);
+
+    /* GET/POST /maintenance/schedules */
+    if (path === '/maintenance/schedules') return handleTable('maintenance_schedule', request, url, env, 'next_due_date');
+
+    /* PATCH /maintenance/schedules/:id */
+    const schedPatchMatch = path.match(/^\/maintenance\/schedules\/([^/]+)$/);
+    if (schedPatchMatch) {
+      const sid = schedPatchMatch[1];
+      const tid = env.AUTH_DEFAULT_TENANT_ID ?? DEFAULT_TENANT;
+      if (method === 'PATCH') {
+        const rawBody = await request.json() as Record<string, unknown>;
+        const body = snakeBody(rawBody);
+        const { data, error } = await sb(env).from('maintenance_schedule')
+          .update(body).eq('id', sid).eq('tenant_id', tid).select().single();
+        if (error || !data) return errResp(error?.message ?? 'Jadwal tidak ditemukan.', error ? 500 : 404, request);
+        return jsonResp(camelize(data), 200, request);
+      }
+      if (method === 'DELETE') {
+        const { error } = await sb(env).from('maintenance_schedule')
+          .delete().eq('id', sid).eq('tenant_id', tid);
+        if (error) return errResp(error.message, 500, request);
+        return new Response(null, { status: 204, headers: cors(request) });
+      }
+    }
+
+    /* POST /maintenance/schedules/run-due — jalankan jadwal jatuh tempo */
+    if (path === '/maintenance/schedules/run-due' && method === 'POST') {
+      const tid   = env.AUTH_DEFAULT_TENANT_ID ?? DEFAULT_TENANT;
+      const today = new Date().toISOString().slice(0, 10);
+
+      // Ambil semua jadwal aktif yang sudah jatuh tempo
+      const { data: dueSchedules, error: schedErr } = await sb(env)
+        .from('maintenance_schedule')
+        .select('*')
+        .eq('tenant_id', tid)
+        .eq('active', true)
+        .lte('next_due_date', today);
+
+      if (schedErr) return errResp(schedErr.message, 500, request);
+
+      const due = (dueSchedules ?? []) as Array<Record<string, string | number | null>>;
+      const workOrders: unknown[] = [];
+
+      for (const schedule of due) {
+        // Buat work order preventive untuk setiap jadwal jatuh tempo
+        const { data: wo, error: woErr } = await sb(env)
+          .from('work_order')
+          .insert({
+            tenant_id:        tid,
+            asset_id:         schedule.asset_id,
+            maintenance_type: 'PREVENTIVE',
+            complaint:        `Preventive maintenance (${schedule.frequency})`,
+            status:           'OPEN',
+          })
+          .select()
+          .single();
+        if (!woErr && wo) workOrders.push(camelize(wo));
+
+        // Hitung next_due_date berikutnya berdasarkan frekuensi
+        const nextDue = computeNextDue(
+          schedule.next_due_date as string,
+          schedule.frequency as string,
+          schedule.interval_days as number | null,
+        );
+
+        await sb(env).from('maintenance_schedule')
+          .update({ last_done_date: schedule.next_due_date, next_due_date: nextDue })
+          .eq('id', schedule.id)
+          .eq('tenant_id', tid);
+      }
+
+      return jsonResp({ processed: due.length, workOrders }, 200, request);
+    }
     if (path.match(/^\/maintenance\/tickets\/[^/]+\/status$/)) {
       const mid = path.split('/')[3];
       const b   = await request.json() as Record<string, string>;
