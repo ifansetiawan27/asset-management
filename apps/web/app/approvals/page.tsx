@@ -41,7 +41,7 @@ export default function ApprovalsPage() {
         <EmptyState title="Tidak ada approval menunggu" hint="Semua permintaan sudah diproses." />
       ) : (
         <Card>
-          <CardHeader title={`Menunggu Persetujuan (${items.length})`} />
+          <CardHeader title={`Menunggu Persetujuan (${items.filter(i => ['PENDING','REQUESTED'].includes(i.status)).length})`} />
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -54,20 +54,27 @@ export default function ApprovalsPage() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((a) => (
-                  <tr key={a.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium text-slate-800">{a.entityType}</td>
-                    <td className="px-4 py-3 text-slate-500">{a.approverRole}</td>
-                    <td className="px-4 py-3"><StatusBadge status={a.status} /></td>
-                    <td className="px-4 py-3 text-slate-500">{formatDateTime(a.createdAt)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
-                        <Button size="sm" onClick={() => decide(a.id, 'approve')} disabled={busy !== null}>Setujui</Button>
-                        <Button size="sm" variant="danger" onClick={() => decide(a.id, 'reject')} disabled={busy !== null}>Tolak</Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {items.map((a) => {
+                  const isPending = ['PENDING', 'REQUESTED'].includes(a.status);
+                  return (
+                    <tr key={a.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                      <td className="px-4 py-3 font-medium text-slate-800">{a.entityType}</td>
+                      <td className="px-4 py-3 text-slate-500">{a.approverRole}</td>
+                      <td className="px-4 py-3"><StatusBadge status={a.status} /></td>
+                      <td className="px-4 py-3 text-slate-500">{formatDateTime(a.createdAt)}</td>
+                      <td className="px-4 py-3">
+                        {isPending ? (
+                          <div className="flex justify-end gap-2">
+                            <Button size="sm" onClick={() => decide(a.id, 'approve')} disabled={busy !== null}>Setujui</Button>
+                            <Button size="sm" variant="danger" onClick={() => decide(a.id, 'reject')} disabled={busy !== null}>Tolak</Button>
+                          </div>
+                        ) : (
+                          <span className="flex justify-end text-xs text-slate-400">Sudah diproses</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

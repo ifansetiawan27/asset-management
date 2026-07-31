@@ -832,7 +832,16 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     if (path === '/disposals') return handleTable('disposal_request', request, url, env);
 
     /* Approvals */
-    if (path === '/approvals/inbox') return handleTable('approval_request', request, url, env);
+    /* Inbox hanya tampilkan yang BELUM diproses (PENDING / REQUESTED) */
+    if (path === '/approvals/inbox') {
+      const { data, error } = await sb(env).from('approval_request')
+        .select('*')
+        .eq('tenant_id', env.AUTH_DEFAULT_TENANT_ID ?? DEFAULT_TENANT)
+        .in('status', ['PENDING', 'REQUESTED'])
+        .order('created_at', { ascending: false });
+      if (error) return errResp(error.message, 500, request);
+      return jsonResp(camelize(data ?? []), 200, request);
+    }
     if (path.match(/^\/approvals\/[^/]+\/(approve|reject)$/)) {
       const parts  = path.split('/');
       const aid    = parts[2];
